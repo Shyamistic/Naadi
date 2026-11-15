@@ -1,0 +1,6 @@
+requests>=2.32
+protobuf>=5.28
+gtfs-realtime-bindings>=1.0
+pyarrow>=17
+duckdb>=1.1
+python-dotenv>=1.0

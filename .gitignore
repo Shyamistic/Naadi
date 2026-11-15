@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+# Licensed raw data: do not redistribute (Transport Stack Licence 1.0)
+*.xlsb
+*.xlsx
+*.zip
+delhi_buses_static_gtfs_*/
+data/raw/
+data/processed/
+research/_dts/
+
+.venv/
+__pycache__/
