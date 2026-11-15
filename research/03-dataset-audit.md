@@ -152,6 +152,19 @@ This is the organisers' own ETA and the most relevant baseline. A logger (`scrip
 
 Despite the file name, it covers **1 Sep 2024 to 28 Feb 2025**: 181 days, 247 stations, 10 lines, hourly entries and exits (04:00 to 00:59), no missing cells. Average 2.87 M entries per day (range 1.26 M to 3.46 M). City-wide entries peak at 09:00 (263K) and 18:00 (289K). Uses: Phase 2 (Problems 3 to 5) and demand weighting at metro-bus interchanges. It is about two years old, so treat levels as approximate.
 
+### 5.4 Google Maps Demo Key (15 Nov)
+
+A Maps Demo Key (no billing account) is stored in `.env` as `GOOGLE_MAPS_API_KEY`. Usage pauses at a daily limit that Google does not publish; there are no charges.
+
+| Check (Kashmere Gate ISBT → Nehru Place) | Result |
+| --- | --- |
+| Transit, bus only, future departure | Works. 4 options; best is route 425, 30 stops, 64.7 min door to door, 50.9 min on the bus |
+| Transit, departure 2 days in the past | Works |
+| Transit, any mode | Works. Violet Line metro, 14 stops, 43.9 min |
+| Driving with live traffic (Pro feature) | Works. 48.5 min with traffic against 41.4 min without |
+
+**Finding:** Google's bus answers for Friday 13 Nov and Tuesday 17 Nov at 08:30 are identical to the second (boards 08:44:13, 3,880 s). Its planned Delhi bus times look timetable-based, with no day-to-day or traffic variation. Its pace (30 stops in 50.9 min) is close to the official 18 km/h template. Google's stop names ("Dr. BR Ambedkar University") are not in our v1-2 feed, so it uses a different timetable version. Whether Google adjusts trips departing "now" for live traffic is still to be tested.
+
 ---
 
 ## 6. Status
