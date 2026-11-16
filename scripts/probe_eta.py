@@ -47,8 +47,6 @@ def main() -> None:
     rnd = random.Random(1)
     sample = rnd.sample(vs, min(3, len(vs)))
 
-    show("bus ETAs, example vehicle from the email", requests.get(f"{BASE}/bus/etas", params={"vehicle_id": "REDACTED"},
-                                                                 headers=h, timeout=30), "bus_example.json")
     for i, v in enumerate(sample):
         show(f"bus ETAs, live vehicle #{i} on route {v.trip.route_id}",
              requests.get(f"{BASE}/bus/etas", params={"vehicle_id": v.vehicle.id}, headers=h, timeout=30), f"bus_{i}.json")
