@@ -17,3 +17,4 @@ __pycache__/
 *.7z
 data/*.log
 data/*.err
+data/reports/
