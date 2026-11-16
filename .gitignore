@@ -12,3 +12,8 @@ research/_dts/
 
 .venv/
 __pycache__/
+
+# Raw archive
+*.7z
+data/*.log
+data/*.err
