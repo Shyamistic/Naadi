@@ -45,7 +45,11 @@ STATIONARY_M = 5
 MIN_SAMPLES = 30
 AGG_CHUNKS = 20
 
-HOUR = "CAST(((t + 19800) // 3600) % 24 AS INT)"  # IST hour
+# IST hour. floor() matters: t is fractional and CAST(DOUBLE AS INT) rounds, which shifted
+# every bin by 30 min and produced an hour 24 (fixed 17 Nov 2026).
+HOUR = "CAST(floor((t + 19800) / 3600) AS BIGINT) % 24"
+# Days used to build the historical tables. Later days (Nov live recording) are test data only.
+TRAIN_PREFIX = "2026_10"
 DAYTYPE = "CASE WHEN isodow(to_timestamp(t + 19800)) >= 6 THEN 'weekend' ELSE 'weekday' END"
 
 
@@ -116,7 +120,7 @@ def process_day(con, day):
             )
             SELECT route_id, stop_id, min(ts) AS arr_ts, max(ts) AS dep_ts,
                    CAST(sum(still) AS INT) AS dwell_s, count(*) AS n_pts,
-                   CAST(((min(ts) + 19800) // 3600) % 24 AS INT) AS hour,
+                   CAST(floor((min(ts) + 19800) / 3600) AS BIGINT) % 24 AS hour,
                    CASE WHEN isodow(to_timestamp(min(ts) + 19800)) >= 6
                         THEN 'weekend' ELSE 'weekday' END AS daytype
             FROM j GROUP BY k, route_id, stop_id
@@ -126,8 +130,10 @@ def process_day(con, day):
     # link traversals
     lk = WORK / "links" / f"day={day}.parquet"
     lk.parent.mkdir(parents=True, exist_ok=True)
+    ps = WORK / "passages" / f"day={day}.parquet"
+    ps.parent.mkdir(parents=True, exist_ok=True)
     con.execute(f"""
-        COPY (
+        CREATE OR REPLACE TEMP TABLE xing AS
             WITH pr AS (
                 SELECT k, route_id, ts0 AS t1, ts AS t2, d0 AS d1, d AS d2,
                        unnest(generate_series(CAST(floor(d0/500) AS INT),
@@ -142,18 +148,26 @@ def process_day(con, day):
                  AND pr.b = CAST(floor(st.sd/500) AS INT)
                  AND st.sd >= d1 AND st.sd < d2
                 GROUP BY ALL
-            ), y AS (
-                SELECT route_id, stop_id AS from_stop_id, ord, sd, t,
+            )
+            SELECT * FROM x
+    """)
+    # stop passages: when each bus-trip (hashed key k) crossed each stop on its route
+    con.execute(f"COPY (SELECT k, route_id, stop_id, ord, t FROM xing) TO '{ps}' "
+                f"(FORMAT parquet, COMPRESSION zstd)")
+    con.execute(f"""
+        COPY (
+            WITH y AS (
+                SELECT k, route_id, stop_id AS from_stop_id, ord, sd, t,
                        lead(stop_id) OVER w AS to_stop_id, lead(ord) OVER w AS ord2,
                        lead(sd) OVER w AS sd2, lead(t) OVER w AS t2
-                FROM x WINDOW w AS (PARTITION BY k, route_id ORDER BY ord)
+                FROM xing WINDOW w AS (PARTITION BY k, route_id ORDER BY ord)
             ), z AS (
-                SELECT route_id, from_stop_id, to_stop_id, ord, sd2 - sd AS dist_m,
+                SELECT k, route_id, from_stop_id, to_stop_id, ord, sd2 - sd AS dist_m,
                        t2 - t AS tt_s, t,
                        (sd2 - sd) / (t2 - t) * 3.6 AS speed_kmh
                 FROM y WHERE ord2 = ord + 1 AND t2 - t > 0
             )
-            SELECT route_id, from_stop_id, to_stop_id, ord, dist_m, tt_s, speed_kmh,
+            SELECT k, route_id, from_stop_id, to_stop_id, ord, dist_m, tt_s, speed_kmh, t,
                    {HOUR} AS hour, {DAYTYPE} AS daytype
             FROM z
             WHERE tt_s BETWEEN {TT_MIN_S} AND {TT_MAX_S}
@@ -171,8 +185,8 @@ def process_day(con, day):
 
 
 def aggregate(con):
-    links = (WORK / "links" / "day=*.parquet").as_posix()
-    events = (WORK / "events" / "day=*.parquet").as_posix()
+    links = (WORK / "links" / f"day={TRAIN_PREFIX}_*.parquet").as_posix()
+    events = (WORK / "events" / f"day={TRAIN_PREFIX}_*.parquet").as_posix()
     parts = WORK / "agg_parts"
     parts.mkdir(exist_ok=True)
     for f in parts.glob("*.parquet"):
@@ -190,7 +204,7 @@ def aggregate(con):
                        quantile_cont(tt_s, 0.1) AS tt_p10, quantile_cont(tt_s, 0.5) AS tt_p50,
                        quantile_cont(tt_s, 0.9) AS tt_p90
                 FROM read_parquet('{links}') WHERE route_id % {AGG_CHUNKS} = {c}
-                GROUP BY ALL
+                GROUP BY route_id, from_stop_id, to_stop_id, ord, hour, daytype
             ) TO '{parts / f"p{c}.parquet"}' (FORMAT parquet, COMPRESSION zstd)
         """)
     f = OUT / "speed_by_link_hour_daytype.parquet"
@@ -209,7 +223,7 @@ def aggregate(con):
                        quantile_cont(dwell_s, 0.9) AS dwell_p90,
                        avg((dwell_s >= 10)::INT) AS share_dwell_10s
                 FROM read_parquet('{events}') WHERE route_id % {AGG_CHUNKS} = {c}
-                GROUP BY ALL
+                GROUP BY route_id, stop_id, hour, daytype
             ) TO '{dparts / f"p{c}.parquet"}' (FORMAT parquet, COMPRESSION zstd)
         """)
     con.execute(f"COPY (SELECT * FROM read_parquet('{(dparts / '*.parquet').as_posix()}')) "
@@ -236,7 +250,8 @@ def report(con, f, d, days):
                  round(median(speed_median), 1) med FROM {F} GROUP BY 1, 2 ORDER BY 2, 1""")
     dw = q(f"SELECT median(dwell_median), avg(share_dwell_10s) FROM read_parquet('{d}') WHERE n >= 30")[0]
     L = ["# Speed tables report", "",
-         f"Days processed: {len(days)} (all L2 days: {len(list(L2.glob('day=*.parquet')))}).", "",
+         f"Training days aggregated: {len(days)} (prefix {TRAIN_PREFIX}; all L2 days: "
+         f"{len(list(L2.glob('day=*.parquet')))}). Later days are test data and are not in these tables.", "",
          "## Row counts",
          f"- Matched points used: {tot['matched_points']:,}",
          f"- Stop events: {tot['stop_events']:,}",
@@ -271,7 +286,7 @@ def report(con, f, d, days):
           f"- Link: consecutive stops. Kept if time {TT_MIN_S}-{TT_MAX_S} s, length {DIST_MIN_M}-{DIST_MAX_M} m, "
           f"speed {V_MIN_KMH}-{V_MAX_KMH} km/h. Travel time includes dwell at the from-stop "
           "(stop centre to stop centre).",
-          "- Hour and day type use IST (weekend = Sat/Sun). GTFS calendar runs every day, so it is not used.",
+          "- Hour and day type use IST (weekend = Sat/Sun), hour = floor of local time. GTFS calendar runs every day, so it is not used.",
           "- GPS `speed` column is not used (it does not track position change).",
           "- No vehicle_id or trip_id in any aggregate output.",
           "- Known limits: nearest-segment stop projection and no direction check, so loop routes can mix passes; "
@@ -303,9 +318,10 @@ def main():
             continue
         r = process_day(con, day)
         print(day, r, flush=True)
-    done = [json.loads(p.read_text()) for p in sorted((WORK / "stats").glob("day=*.json"))]
-    if len(done) < len(all_days):
-        print(f"{len(done)}/{len(all_days)} days done; no aggregate yet")
+    train_days = [d for d in all_days if d.startswith(TRAIN_PREFIX)]
+    done = [json.loads(p.read_text()) for p in sorted((WORK / "stats").glob(f"day={TRAIN_PREFIX}_*.json"))]
+    if len(done) < len(train_days):
+        print(f"{len(done)}/{len(train_days)} training days done; no aggregate yet")
         return
     f, d = aggregate(con)
     counts = report(con, f, d, done)
