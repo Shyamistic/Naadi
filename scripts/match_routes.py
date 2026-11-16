@@ -120,7 +120,7 @@ def match_day(con, day, max_off):
 
 
 def write_report():
-    days = sorted(json.loads(p.read_text()) for p in STATS.glob("day=*.json"))
+    days = [json.loads(p.read_text()) for p in sorted(STATS.glob("day=*.json"))]
     if not days:
         return
     tot = {k: sum(d[k] for d in days) for k in ("rows", "matched", "off_shape", "no_shape")}
