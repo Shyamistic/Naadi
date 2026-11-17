@@ -24,3 +24,5 @@ web/node_modules/
 *.tsbuildinfo
 validation/results/*.parquet
 .pytest_cache/
+.worktrees/
+.agents/
