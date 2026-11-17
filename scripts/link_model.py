@@ -48,7 +48,7 @@ FEATURES = ["log_dist", "hour", "we", "ord", "hd", "gy", "gx",
 def connect() -> duckdb.DuckDBPyConnection:
     TMP.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
-    con.execute(f"SET memory_limit='5GB'; SET threads=8; SET temp_directory='{TMP.as_posix()}'; "
+    con.execute(f"SET TimeZone='UTC'; SET memory_limit='5GB'; SET threads=8; SET temp_directory='{TMP.as_posix()}'; "
                 "SET max_temp_directory_size='12GiB'; SET preserve_insertion_order=false")
     return con
 

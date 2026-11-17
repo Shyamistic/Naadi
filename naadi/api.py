@@ -1,0 +1,446 @@
+"""Naadi HTTP API (FastAPI). Run: uvicorn naadi.api:app --host 0.0.0.0 --port 8000
+
+Main endpoint: GET /journeys?from=...&to=...&depart=... (the brief's example API).
+Data: Delhi Transport Stack (delhi.transportstack.in) and Delhi Open Transit Data; see /about.
+"""
+from __future__ import annotations
+
+import datetime as dt
+import json
+import math
+import os
+import re
+import threading
+import time
+from collections import defaultdict, deque
+from pathlib import Path
+
+import numpy as np
+import pyarrow.parquet as pq
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+
+from .linkgrid import LinkGrid
+from .live import LiveEngine
+from .network import Network, haversine
+from .nowcast import NowcastParams
+from .router import IST_S, Planner, _hw
+from .strategy import refine
+
+ROOT = Path(os.environ.get("NAADI_ROOT", Path(__file__).resolve().parents[1]))
+MODEL = ROOT / "data" / "processed" / "model"
+IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
+BOX = (28.15, 29.40, 76.55, 77.75)  # Delhi NCR bounds accepted for coordinates
+VERSION = "naadi-1.0 (history: Oct 2026, 31 days; model: LightGBM link times + live nowcast)"
+ATTRIBUTION = ("Bus data: Delhi Transport Stack (delhi.transportstack.in) and Delhi Open Transit Data "
+               "(Department of Transport, GNCTD; IIIT-Delhi). Map data: OpenStreetMap contributors.")
+ALIASES = {"kashmiri gate": "kashmere gate", "kashmiri": "kashmere", "cp": "connaught place", "connaught": "shivaji stadium",
+           "aiims": "aiims", "isbt kashmere gate": "isbt kashmere gate", "new delhi station": "new delhi railway station",
+           "ndls": "new delhi railway station", "old delhi station": "old delhi railway station", "airport": "igi airport",
+           "nehru place": "nehru place", "anand vihar": "anand vihar isbt"}
+
+
+class State:
+    pass
+
+
+S = State()
+
+
+def load() -> None:
+    net = Network(MODEL / os.environ.get("NAADI_NETWORK", "network_prod"))
+    grid = LinkGrid(MODEL / os.environ.get("NAADI_GRID", "grid_oct_all.parquet"), methods=("gbm",))
+    geom = pq.read_table(MODEL / "tables" / os.environ.get("NAADI_TABLES", "oct_all") / "geom.parquet").to_pydict()
+    gi = grid.index(np.array(geom["route_id"]), np.array(geom["ord"]))
+    ck = (np.array(geom["gy"], np.int64) * 100000 + np.array(geom["gx"], np.int64)) * 8 + np.array(geom["hd"])
+    _, cid = np.unique(ck, return_inverse=True)
+    cell_of_link = np.zeros(len(grid.route), np.int64)
+    cell_of_link[gi[gi >= 0]] = cid[gi >= 0]
+    p = NowcastParams()
+    ev = ROOT / "validation" / "results" / "eta_oct.json"
+    if ev.exists():
+        p = NowcastParams(**json.loads(ev.read_text())["nowcast"])
+    S.net, S.grid = net, grid
+    S.naadi, S.tt = Planner(net, "naadi"), Planner(net, "timetable")
+    S.live = LiveEngine(net, grid, cell_of_link, Path(os.environ.get("NAADI_SNAPSHOT", ROOT / "data" / "live" / "latest.pb")), p)
+    iv = MODEL / "intervals.json"
+    S.intervals = json.loads(iv.read_text()) if iv.exists() else None
+    acc = ROOT / "validation" / "results" / "summary.json"
+    S.accuracy = json.loads(acc.read_text()) if acc.exists() else {}
+    ac = MODEL / "route_ac.json"
+    S.route_ac = json.loads(ac.read_text()) if ac.exists() else {}
+    # stop search index: one entry per distinct name, centroid of its stops
+    groups = defaultdict(list)
+    for i, n in enumerate(net.stop_names):
+        groups[norm(n)].append(i)
+    nroutes = np.diff(net.sr_ptr)
+    S.search = [(k, v, net.stop_names[v[0]], float(np.mean(net.lat[v])), float(np.mean(net.lon[v])), int(nroutes[v].sum()))
+                for k, v in groups.items()]
+    S.cells = speed_cells()
+    threading.Thread(target=live_loop, daemon=True).start()
+
+
+def live_loop():
+    while True:
+        try:
+            S.live.poll()
+        except Exception as e:  # keep serving if one snapshot is bad
+            print("live poll error", type(e).__name__, e)
+        time.sleep(4)
+
+
+def norm(s: str) -> str:
+    s = re.sub(r"[^a-z0-9 ]+", " ", s.lower())
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def speed_cells():
+    t = pq.read_table(MODEL / "tables" / os.environ.get("NAADI_TABLES", "oct_all") / "cell_h.parquet").to_pydict()
+    acc = defaultdict(lambda: np.zeros((2, 24, 2)))
+    for gy, gx, h, we, n, lp in zip(t["gy"], t["gx"], t["hour"], t["we"], t["n"], t["lpace_mean"]):
+        a = acc[(gy, gx)]
+        a[we, h, 0] += n * lp
+        a[we, h, 1] += n
+    out = []
+    for (gy, gx), a in acc.items():
+        if a[:, :, 1].sum() < 200:
+            continue
+        with np.errstate(invalid="ignore", divide="ignore"):
+            kmh = 3600.0 / np.exp(a[:, :, 0] / a[:, :, 1])
+        kmh = np.where(a[:, :, 1] >= 10, np.round(kmh, 1), np.nan)
+        out.append({"lat": round((gy + 0.5) * 0.0045, 5), "lon": round((gx + 0.5) * 0.0051, 5),
+                    "weekday": [None if not np.isfinite(x) else float(x) for x in kmh[0]],
+                    "weekend": [None if not np.isfinite(x) else float(x) for x in kmh[1]], "n": int(a[:, :, 1].sum())})
+    return out
+
+
+app = FastAPI(title="Naadi API", version="1.0",
+              description="Delhi bus travel-time model and journey planner built on the Delhi Transport Stack. "
+                          "Times come from 31 days of real bus GPS (Oct 2026) plus a live nowcast. " + ATTRIBUTION)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+_hits: dict[str, deque] = defaultdict(deque)
+
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    q, now = _hits[ip], time.time()
+    while q and q[0] < now - 60:
+        q.popleft()
+    if len(q) >= 120:
+        return JSONResponse({"detail": "Too many requests; try again in a minute."}, status_code=429)
+    q.append(now)
+    return await call_next(request)
+
+
+@app.on_event("startup")
+def _startup():
+    load()
+
+
+# ---------------------------------------------------------------- helpers
+def resolve(q: str):
+    q = (q or "").strip()
+    if not q or len(q) > 120:
+        raise HTTPException(400, "Give a place as 'lat,lon', a stop_id (e.g. 'stop:7571') or a stop name.")
+    m = re.fullmatch(r"\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*", q)
+    if m:
+        lat, lon = float(m.group(1)), float(m.group(2))
+        if not (BOX[0] <= lat <= BOX[1] and BOX[2] <= lon <= BOX[3]):
+            raise HTTPException(400, "Coordinates must be inside Delhi NCR.")
+        return lat, lon, f"{lat:.5f}, {lon:.5f}"
+    m = re.fullmatch(r"stop:(\d+)", q)
+    if m:
+        i = S.net.stop_index.get(int(m.group(1)))
+        if i is None:
+            raise HTTPException(404, "Unknown stop_id.")
+        return float(S.net.lat[i]), float(S.net.lon[i]), S.net.stop_names[i]
+    hits = search_stops(q, 1)
+    if not hits:
+        raise HTTPException(404, f"No stop matches '{q}'.")
+    h = hits[0]
+    return h["lat"], h["lon"], h["name"]
+
+
+def search_stops(q: str, limit: int = 8):
+    n = norm(q)
+    n = ALIASES.get(n, n)
+    toks = n.split()
+    out = []
+    for key, idx, name, lat, lon, nr in S.search:
+        if key.startswith(n):
+            sc = 3.0
+        elif all(any(w.startswith(t) for w in key.split()) for t in toks):
+            sc = 2.0
+        elif n in key:
+            sc = 1.0
+        else:
+            continue
+        out.append((sc, nr, name, lat, lon, idx))
+    out.sort(key=lambda x: (-x[0], -x[1]))
+    return [{"name": nm, "lat": round(la, 6), "lon": round(lo, 6), "routes": nr,
+             "stop_ids": [int(S.net.stop_ids[i]) for i in idx]} for _, nr, nm, la, lo, idx in out[:limit]]
+
+
+def parse_depart(s: str | None) -> tuple[float, bool]:
+    now = time.time()
+    if not s or s == "now":
+        return now, True
+    try:
+        t = dt.datetime.fromisoformat(s)
+    except ValueError:
+        raise HTTPException(400, "depart must be 'now' or ISO time, e.g. 2026-11-17T08:30 (IST).")
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=IST)
+    return t.timestamp(), abs(t.timestamp() - now) <= 900
+
+
+def iso(t: float) -> str:
+    return dt.datetime.fromtimestamp(t, IST).isoformat(timespec="minutes")
+
+
+def fare(dist_km: float):
+    na = 5 if dist_km <= 4 else 10 if dist_km <= 10 else 15
+    ac = 10 if dist_km <= 4 else 15 if dist_km <= 8 else 20 if dist_km <= 12 else 25
+    return na, ac
+
+
+def shape_slice(r: int, d0: float, d1: float, step: int = 1):
+    n = S.net
+    a, b = int(n.shp_ptr[r]), int(n.shp_ptr[r + 1])
+    sd = n.shp_d[a:b]
+    i0 = max(0, int(np.searchsorted(sd, d0)) - 1)
+    i1 = min(b - a, int(np.searchsorted(sd, d1)) + 1)
+    lat, lon = n.shp_lat[a + i0:a + i1], n.shp_lon[a + i0:a + i1]
+    return [[round(float(x), 5), round(float(y), 5)] for x, y in zip(lon[::step], lat[::step])]
+
+
+def interval(total_s: float, live: bool):
+    iv = S.intervals
+    if not iv:
+        return None
+    key = "live" if live and "live" in iv else "history"
+    band = next((b for b in iv[key]["bands"] if total_s / 60 <= b["max_min"]), iv[key]["bands"][-1])
+    return total_s * math.exp(band["q_lo"]), total_s * math.exp(band["q_hi"])
+
+
+def leg_json(l, live_info):
+    n = S.net
+    if l.kind == "walk":
+        pts = []
+        a = (float(n.lat[l.from_stop]), float(n.lon[l.from_stop])) if l.from_stop >= 0 else None
+        b = (float(n.lat[l.to_stop]), float(n.lon[l.to_stop])) if l.to_stop >= 0 else None
+        return {"type": "walk", "minutes": round((l.t1 - l.t0) / 60, 1), "metres": round(l.walk_m),
+                "from_stop": int(n.stop_ids[l.from_stop]) if l.from_stop >= 0 else None,
+                "to_stop": int(n.stop_ids[l.to_stop]) if l.to_stop >= 0 else None,
+                "_ends": (a, b)}
+    r = l.route
+    short = n.route_short[r]
+    dist_km = float(n.rs_sd[l.alight_rs] - n.rs_sd[l.board_rs]) / 1000
+    na, ac = fare(dist_km)
+    alts = sorted({n.route_short[a[0]] for a in getattr(l, "alternatives", [])} - {short})
+    samples = int(S.grid.n_hist[n.rs_link[l.board_rs:l.alight_rs][n.rs_link[l.board_rs:l.alight_rs] >= 0]].sum()) if l.alight_rs > l.board_rs else 0
+    return {"type": "bus", "route": re.sub(r"(UP|DOWN)\d*$", "", short), "route_variant": short,
+            "route_id": int(n.route_ids[r]), "towards": n.route_desc[r].split(" to ")[-1] if n.route_desc[r] else "",
+            "also": [re.sub(r"(UP|DOWN)\d*$", "", a) for a in alts],
+            "board": {"stop_id": int(n.stop_ids[l.from_stop]), "name": n.stop_names[l.from_stop],
+                      "lat": float(n.lat[l.from_stop]), "lon": float(n.lon[l.from_stop]), "time": iso(l.t0 + l.wait_s)},
+            "alight": {"stop_id": int(n.stop_ids[l.to_stop]), "name": n.stop_names[l.to_stop],
+                       "lat": float(n.lat[l.to_stop]), "lon": float(n.lon[l.to_stop]), "time": iso(l.t1)},
+            "wait_min": round(l.wait_s / 60, 1), "ride_min": round(l.ride_s / 60, 1),
+            "stops": int(n.rs_ord[l.alight_rs] - n.rs_ord[l.board_rs]), "distance_km": round(dist_km, 1),
+            "fare_inr": {"non_ac": na, "ac": ac, "pink_saheli": 0},
+            "ac_share": S.route_ac.get(str(int(n.route_ids[r]))),
+            "wait_source": live_info.get("wait_source", "history"), "next_buses_min": live_info.get("next", []),
+            "ride_source": "live+history" if live_info.get("live") else "history",
+            "history_samples": samples,
+            "geometry": shape_slice(r, float(n.rs_sd[l.board_rs]), float(n.rs_sd[l.alight_rs]))}
+
+
+def journey_json(j, label_set, live, t_dep, pl_tt):
+    n = S.net
+    legs, info = [], []
+    for l in j.legs:
+        li = getattr(l, "live_info", {}) if live else {}
+        legs.append(leg_json(l, li))
+    # walk geometries: straight segments between known points
+    for i, lg in enumerate(legs):
+        if lg["type"] == "walk":
+            a, b = lg.pop("_ends")
+            prev = legs[i - 1]["alight"] if i > 0 and legs[i - 1]["type"] == "bus" else None
+            nxt = legs[i + 1]["board"] if i + 1 < len(legs) and legs[i + 1]["type"] == "bus" else None
+            p0 = (prev["lat"], prev["lon"]) if prev else a or S._o
+            p1 = (nxt["lat"], nxt["lon"]) if nxt else b or S._d
+            lg["geometry"] = [[round(p0[1], 5), round(p0[0], 5)], [round(p1[1], 5), round(p1[0], 5)]]
+    tot = j.total_s
+    rng = interval(tot, live)
+    chakra = []
+    for h in range(24):
+        day0 = math.floor((t_dep + IST_S) / 86400) * 86400 - IST_S
+        th = day0 + h * 3600 + 1800
+        r2 = refine(S.naadi, j, th)
+        chakra.append(None if r2 is None else round(r2.total_s / 60, 1))
+    vals = [(h, v) for h, v in enumerate(chakra) if v is not None]
+    quiet = min(vals, key=lambda x: x[1]) if vals else None
+    tt = refine(pl_tt, j, t_dep)
+    bus_legs = [l for l in legs if l["type"] == "bus"]
+    fare_na = sum(l["fare_inr"]["non_ac"] for l in bus_legs)
+    fare_ac = sum(l["fare_inr"]["ac"] for l in bus_legs)
+    return {"labels": sorted(label_set), "total_min": round(tot / 60, 1),
+            "range_min": [round(rng[0] / 60), round(rng[1] / 60)] if rng else None,
+            "depart": iso(t_dep), "arrive": iso(j.arrive),
+            "arrive_range": [iso(t_dep + rng[0]), iso(t_dep + rng[1])] if rng else None,
+            "transfers": max(0, j.n_bus - 1), "walk_m": round(j.walk_m()),
+            "wait_min": round(sum(l["wait_min"] for l in bus_legs), 1), "ride_min": round(sum(l["ride_min"] for l in bus_legs), 1),
+            "fare_inr": {"non_ac": fare_na, "ac": fare_ac, "pink_saheli": 0},
+            "quiet_hour": {"hour": quiet[0], "total_min": quiet[1]} if quiet else None,
+            "samay_chakra": chakra, "timetable_min": round(tt.total_s / 60, 1) if tt else None,
+            "live": live, "legs": legs}
+
+
+def apply_live_first_wait(j, t_dep, cum_live):
+    """Replace the first bus leg's expected wait with the next live bus among its routes."""
+    t = t_dep
+    for l in j.legs:
+        if l.kind == "walk":
+            t += l.t1 - l.t0
+            continue
+        rs = [a[1] for a in getattr(l, "alternatives", [(l.route, l.board_rs, l.alight_rs, 1)])]
+        h0, h1, w = _hw(t)
+        cum_h = (1 - w) * cum_live[h0] + w * cum_live[h1]
+        nb = [x for x in S.live.next_buses(rs, t, cum_h) if x[1] >= t]
+        info = {"live": True, "next": [round((x[1] - t) / 60, 1) for x in nb[:3]]}
+        if nb:
+            new_wait = nb[0][1] - t
+            shift = new_wait - l.wait_s
+            l.wait_s = new_wait
+            info["wait_source"] = "live bus"
+            l.t1 += shift
+            j.arrive += shift
+            # later legs shift too
+            idx = j.legs.index(l)
+            for l2 in j.legs[idx + 1:]:
+                l2.t0 += shift; l2.t1 += shift
+        l.live_info = info
+        for l2 in j.legs[j.legs.index(l) + 1:]:
+            if l2.kind == "bus":
+                l2.live_info = {"live": True}
+        break
+    return j
+
+
+# ---------------------------------------------------------------- endpoints
+@app.get("/health")
+def health():
+    return {"status": "ok", "version": VERSION, "live": S.live.summary(), "stops": S.net.n_stops, "routes": S.net.n_routes}
+
+
+@app.get("/stops/search")
+def stops_search(q: str = Query(..., min_length=2, max_length=80), limit: int = Query(8, ge=1, le=25)):
+    return {"query": q, "results": search_stops(q, limit)}
+
+
+@app.get("/journeys")
+def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<id>' or a stop name"),
+             to: str = Query(..., description="'lat,lon', 'stop:<id>' or a stop name"),
+             depart: str | None = Query(None, description="'now' (default) or ISO time in IST, e.g. 2026-11-17T08:30"),
+             options: int = Query(3, ge=1, le=5)):
+    o, d = resolve(frm), resolve(to)
+    t_dep, near_now = parse_depart(depart)
+    S._o, S._d = (o[0], o[1]), (d[0], d[1])
+    mult = S.live.nowcast_mult(t_dep) if near_now else None
+    live = mult is not None
+    js = S.naadi.plan((o[0], o[1]), (d[0], d[1]), t_dep, n_options=6, live_mult=mult)
+    refined = []
+    for j in js:
+        r = refine(S.naadi, j, t_dep)
+        if r is not None:
+            refined.append(r)
+    if live and refined:
+        _, cum_live, _ = S.naadi.tables(t_dep, mult)
+        refined = [apply_live_first_wait(j, t_dep, cum_live) for j in refined]
+    seen, uniq = set(), []
+    for j in sorted(refined, key=lambda j: j.total_s + 300 * (j.n_bus - 1)):
+        sig = tuple(sorted({S.net.route_short[l.route] for l in j.legs if l.kind == "bus"}))
+        if sig not in seen:
+            seen.add(sig)
+            uniq.append(j)
+    uniq = uniq[:options]
+    if not uniq:
+        return {"query": {"from": o[2], "to": d[2], "depart": iso(t_dep)}, "options": [],
+                "message": "No bus journey found within 1 km of both places at this time.", "attribution": ATTRIBUTION}
+    labels = defaultdict(set)
+    labels[min(range(len(uniq)), key=lambda i: uniq[i].total_s)].add("fastest")
+    labels[min(range(len(uniq)), key=lambda i: (uniq[i].n_bus, uniq[i].total_s))].add("fewest_changes")
+    labels[min(range(len(uniq)), key=lambda i: (uniq[i].walk_m(), uniq[i].total_s))].add("least_walking")
+    out = [journey_json(j, labels[i], live, t_dep, S.tt) for i, j in enumerate(uniq)]
+    we = int(((math.floor((t_dep + IST_S) / 86400) + 3) % 7) >= 5)
+    return {"query": {"from": {"name": o[2], "lat": o[0], "lon": o[1]}, "to": {"name": d[2], "lat": d[0], "lon": d[1]},
+                      "depart": iso(t_dep), "day_type": "weekend" if we else "weekday", "live": live,
+                      "crow_km": round(float(haversine(o[0], o[1], d[0], d[1])) / 1000, 1)},
+            "options": out, "model": VERSION, "attribution": ATTRIBUTION,
+            "notes": "Times are expected door-to-door minutes. Waits use observed bus frequencies and bunching; rides use "
+                     "the model's time for that hour. Fares are indicative (Delhi Tourism city-bus table); women ride free "
+                     "with a Pink Saheli card."}
+
+
+@app.get("/stops/{stop_id}/departures")
+def departures(stop_id: int):
+    i = S.net.stop_index.get(stop_id)
+    if i is None:
+        raise HTTPException(404, "Unknown stop_id.")
+    n = S.net
+    t = time.time()
+    _, cum, wait = S.naadi.tables(t)
+    h0, h1, w = _hw(t)
+    rs = [int(n.sr_rs[j]) for j in range(n.sr_ptr[i], n.sr_ptr[i + 1])]
+    cum_h = (1 - w) * cum[h0] + w * cum[h1]
+    nb = S.live.next_buses(rs, t, cum_h, max_ahead_s=2700)
+    by = defaultdict(list)
+    for r_s, eta, pid in nb:
+        by[int(r_s)].append(round((eta - t) / 60, 1))
+    rows = []
+    for r_s in rs:
+        r = int(n.rs_route[r_s])
+        ew = (1 - w) * wait[h0, r_s] + w * wait[h1, r_s]
+        rows.append({"route": re.sub(r"(UP|DOWN)\d*$", "", n.route_short[r]), "route_variant": n.route_short[r],
+                     "towards": n.route_desc[r].split(" to ")[-1] if n.route_desc[r] else "",
+                     "live_eta_min": by.get(r_s, [])[:3],
+                     "typical_wait_min": None if not np.isfinite(ew) or ew > 1e8 else round(float(ew) / 60, 1)})
+    rows.sort(key=lambda x: (x["live_eta_min"][0] if x["live_eta_min"] else 999, x["typical_wait_min"] or 999))
+    return {"stop": {"stop_id": stop_id, "name": n.stop_names[i], "lat": float(n.lat[i]), "lon": float(n.lon[i])},
+            "now": iso(t), "departures": rows, "attribution": ATTRIBUTION}
+
+
+@app.get("/vehicles")
+def vehicles(min_lat: float = BOX[0], max_lat: float = BOX[1], min_lon: float = BOX[2], max_lon: float = BOX[3]):
+    n = S.net
+    with S.live.lock:
+        bs = list(S.live.buses)
+        ft = S.live.feed_ts
+    out = [[pid, n.route_short[r] if r >= 0 else "", round(la, 5), round(lo, 5), int(ft - ts)]
+           for pid, r, la, lo, ts, d in bs if min_lat <= la <= max_lat and min_lon <= lo <= max_lon]
+    return {"feed_time": iso(ft) if ft else None, "count": len(out),
+            "fields": ["id", "route", "lat", "lon", "age_s"], "vehicles": out,
+            "note": "ids are anonymised; licence plates are never published."}
+
+
+@app.get("/speeds/cells")
+def speeds():
+    return {"cell_size_m": 500, "hours": list(range(24)), "cells": S.cells,
+            "source": "Median bus pace per ~500 m road cell from 37.8 M stop-to-stop bus traversals, Oct 2026."}
+
+
+@app.get("/accuracy")
+def accuracy():
+    return S.accuracy
+
+
+@app.get("/about")
+def about():
+    return {"name": "Naadi (नाड़ी)", "version": VERSION, "attribution": ATTRIBUTION,
+            "licence_note": "Raw data is not redistributed. Derived travel times only.",
+            "source": "Transport Stack Hackathon 2026, Problem 1."}

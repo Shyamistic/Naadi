@@ -1,0 +1,10 @@
+numpy>=2.0
+numba>=0.60
+pyarrow>=17
+duckdb>=1.1
+fastapi>=0.115
+uvicorn[standard]>=0.30
+protobuf>=5.28
+gtfs-realtime-bindings>=1.0
+python-dotenv>=1.0
+requests>=2.32

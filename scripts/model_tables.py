@@ -114,7 +114,7 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     TMP.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
-    con.execute(f"SET memory_limit='4GB'; SET threads=4; SET temp_directory='{TMP.as_posix()}'; "
+    con.execute(f"SET TimeZone='UTC'; SET memory_limit='4GB'; SET threads=4; SET temp_directory='{TMP.as_posix()}'; "
                 "SET max_temp_directory_size='12GiB'; SET preserve_insertion_order=false")
     build_geom(con, out)
     print(a.name, build(con, a.d0, a.d1, out), flush=True)

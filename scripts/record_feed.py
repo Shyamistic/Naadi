@@ -22,6 +22,7 @@ from google.transit import gtfs_realtime_pb2
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "raw" / "rt"
+LIVE = ROOT / "data" / "live"
 URL = "https://otd.delhi.gov.in/api/realtime/VehiclePositions.pb"
 IST = timezone(timedelta(hours=5, minutes=30))
 INTERVAL = 10.0
@@ -74,6 +75,11 @@ def main() -> None:
                 last_raw = t0
             if len(feed.entity) < 10:
                 print(f"{datetime.now(IST):%H:%M:%S} truncated feed ({len(feed.entity)} entities), skipped", flush=True)
+            else:  # publish the latest good snapshot for the live API (atomic replace)
+                LIVE.mkdir(parents=True, exist_ok=True)
+                tmp = LIVE / "latest.pb.tmp"
+                tmp.write_bytes(r.content)
+                os.replace(tmp, LIVE / "latest.pb")
             for e in feed.entity:
                 if not e.HasField("vehicle"):
                     continue

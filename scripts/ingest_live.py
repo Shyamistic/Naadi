@@ -52,7 +52,7 @@ def ingest(day: str, force: bool) -> None:
         return
     src = ", ".join(f"'{g}/*.parquet'" for g in globs)
     con = duckdb.connect()
-    con.execute("SET memory_limit='3GB'; SET threads=4")
+    con.execute("SET TimeZone='UTC'; SET memory_limit='3GB'; SET threads=4")
     raw_n = con.execute(f"SELECT count(*) FROM read_parquet([{src}], union_by_name=true)").fetchone()[0]
     con.execute(f"""
         COPY (

@@ -89,14 +89,24 @@ def build_stops(con):
 def process_day(con, day):
     t0 = time.time()
     src = L2 / f"day={day}.parquet"
-    # hashed bus-trip key; vehicle_id never leaves this query
+    # Hashed bus-run key; vehicle_id never leaves this query. The feed's trip_id often changes in the middle
+    # of a run, so a run is one vehicle on one route until a 20-min gap or a jump back of > 1 km.
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE pts AS
-        SELECT hash(vehicle_id, trip_id) AS k, route_id, ts, shape_dist_m AS d,
-               lag(ts) OVER w AS ts0, lag(shape_dist_m) OVER w AS d0
-        FROM read_parquet('{src}')
-        WHERE match_status = 'matched' AND route_id IN (SELECT route_id FROM st)
-        WINDOW w AS (PARTITION BY vehicle_id, trip_id, route_id ORDER BY ts)
+        WITH a AS (
+            SELECT vehicle_id, route_id, ts, shape_dist_m AS d,
+                   lag(ts) OVER w AS pt, lag(shape_dist_m) OVER w AS pd
+            FROM read_parquet('{src}')
+            WHERE match_status = 'matched' AND route_id IN (SELECT route_id FROM st)
+            WINDOW w AS (PARTITION BY vehicle_id, route_id ORDER BY ts)
+        ), b AS (
+            SELECT *, sum(CASE WHEN pt IS NULL OR ts - pt > 1200 OR d < pd - 1000 THEN 1 ELSE 0 END)
+                      OVER (PARTITION BY vehicle_id, route_id ORDER BY ts) AS run
+            FROM a
+        )
+        SELECT hash(vehicle_id, route_id, run) AS k, route_id, ts, d,
+               lag(ts) OVER w2 AS ts0, lag(d) OVER w2 AS d0
+        FROM b WINDOW w2 AS (PARTITION BY vehicle_id, route_id, run ORDER BY ts)
     """)
     n_pts = con.execute("SELECT count(*) FROM pts").fetchone()[0]
 
@@ -308,7 +318,8 @@ def main():
     all_days = sorted(p.stem.split("=")[1] for p in L2.glob("day=*.parquet"))
     days = a.days or all_days
     con = duckdb.connect()
-    con.execute(f"SET memory_limit='1500MB'; SET threads=2; "
+    # UTC session: the code adds +19800 s itself; an IST session would shift IST times a second time
+    con.execute(f"SET TimeZone='UTC'; SET memory_limit='1500MB'; SET threads=2; "
                 f"SET temp_directory='{TMP.as_posix()}'; SET preserve_insertion_order=false")
     build_segments(con)
     build_stops(con)
