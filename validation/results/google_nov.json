@@ -1,0 +1,74 @@
+{
+ "days": [
+  "2026-11-15",
+  "2026-11-16"
+ ],
+ "google_cases": 187,
+ "both_replayed": 91,
+ "google_match_status": {
+  "google line '425' not matched": 5,
+  "ok": 97,
+  "google line 'DW4' not matched": 2,
+  "google line '740EXT.' not matched": 2,
+  "no bus observed": 11,
+  "boarding stop poorly captured": 17,
+  "google line 'ETAWAHTOLONIVIABAH' not matched": 2,
+  "google line '175' not matched": 2,
+  "google line '118EXT.' not matched": 2,
+  "google line 'CBD(+)' not matched": 2,
+  "google line '214' not matched": 2,
+  "google line 'KAROLBAGH-GURUGRAM' not matched": 2,
+  "google line 'YELLOWLINE' not matched": 2,
+  "google line '113EXT.' not matched": 2,
+  "google line '73' not matched": 2,
+  "google line '988' not matched": 2,
+  "google line '33' not matched": 2,
+  "google line '801STL' not matched": 2,
+  "google line '116A' not matched": 2,
+  "google line '136' not matched": 2,
+  "google line '523' not matched": 2,
+  "google line '990ASTL' not matched": 2,
+  "google line 'DW3' not matched": 2,
+  "google line '2001' not matched": 2,
+  "google line '405' not matched": 2,
+  "no bus within 3 h": 1,
+  "google line '130' not matched": 1,
+  "google line '978' not matched": 1,
+  "google line 'DS-22' not matched": 1,
+  "google line '935' not matched": 1,
+  "google line 'OMS(+)BURARI-DHAULAKUAN' not matched": 1,
+  "google line '181A' not matched": 1,
+  "google line '972' not matched": 1,
+  "google line '221' not matched": 1,
+  "google line 'YMS(+)' not matched": 1,
+  "google line 'TMS(-)' not matched": 1,
+  "google line '7104' not matched": 1,
+  "google line '205' not matched": 1,
+  "google line '429' not matched": 1,
+  "google line '0740NS' not matched": 1
+ },
+ "google": {
+  "mae_min": 36.49860367037001,
+  "median_abs_min": 26.69635380109151,
+  "bias_min": -36.39994288787737,
+  "within_10min_pct": 21.978021978021978
+ },
+ "naadi": {
+  "mae_min": 12.270709623216273,
+  "median_abs_min": 7.166576313972473,
+  "bias_min": -4.087266108535585,
+  "within_10min_pct": 62.637362637362635
+ },
+ "mae_diff_naadi_minus_google_min": {
+  "mean": -24.27424269269978,
+  "ci95": [
+   -31.30275935734912,
+   -17.782564382355517
+  ]
+ },
+ "actual_time_median_min": {
+  "google_itinerary": 59.611536928017934,
+  "naadi_itinerary": 45.00669439236323
+ },
+ "naadi_itinerary_faster_pct": 72.52747252747253
+}

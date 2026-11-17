@@ -65,6 +65,13 @@ def load() -> None:
     S.net, S.grid = net, grid
     S.naadi, S.tt = Planner(net, "naadi"), Planner(net, "timetable")
     S.live = LiveEngine(net, grid, cell_of_link, Path(os.environ.get("NAADI_SNAPSHOT", ROOT / "data" / "live" / "latest.pb")), p)
+    cal = MODEL / "calibration.json"
+    S.calib_live = (1.0, 1.0)
+    if cal.exists():
+        f = json.loads(cal.read_text())["factors"]
+        S.naadi.calib = (f["naadi"]["wait"], f["naadi"]["ride"])
+        if "naadi_live" in f:
+            S.calib_live = (f["naadi_live"]["wait"], f["naadi_live"]["ride"])
     iv = MODEL / "intervals.json"
     S.intervals = json.loads(iv.read_text()) if iv.exists() else None
     acc = ROOT / "validation" / "results" / "summary.json"
@@ -243,9 +250,9 @@ def leg_json(l, live_info):
     na, ac = fare(dist_km)
     alts = sorted({n.route_short[a[0]] for a in getattr(l, "alternatives", [])} - {short})
     samples = int(S.grid.n_hist[n.rs_link[l.board_rs:l.alight_rs][n.rs_link[l.board_rs:l.alight_rs] >= 0]].sum()) if l.alight_rs > l.board_rs else 0
-    return {"type": "bus", "route": re.sub(r"(UP|DOWN)\d*$", "", short), "route_variant": short,
+    return {"type": "bus", "route": re.sub(r"(UP|DOWN)\d*$", "", short).strip(), "route_variant": short.strip(),
             "route_id": int(n.route_ids[r]), "towards": n.route_desc[r].split(" to ")[-1] if n.route_desc[r] else "",
-            "also": [re.sub(r"(UP|DOWN)\d*$", "", a) for a in alts],
+            "also": sorted({re.sub(r"(UP|DOWN)\d*$", "", a).strip() for a in alts} - {re.sub(r"(UP|DOWN)\d*$", "", short).strip()}),
             "board": {"stop_id": int(n.stop_ids[l.from_stop]), "name": n.stop_names[l.from_stop],
                       "lat": float(n.lat[l.from_stop]), "lon": float(n.lon[l.from_stop]), "time": iso(l.t0 + l.wait_s)},
             "alight": {"stop_id": int(n.stop_ids[l.to_stop]), "name": n.stop_names[l.to_stop],
@@ -355,10 +362,20 @@ def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<
     live = mult is not None
     js = S.naadi.plan((o[0], o[1]), (d[0], d[1]), t_dep, n_options=6, live_mult=mult)
     refined = []
-    for j in js:
-        r = refine(S.naadi, j, t_dep)
-        if r is not None:
-            refined.append(r)
+    if live:  # ride times with the nowcast applied, live calibration factors
+        we_q, cum_q, _ = S.naadi.tables(t_dep, mult)
+        cum_saved = S.naadi.cum
+        tmp = cum_saved.copy()
+        tmp[we_q] = cum_q
+        S.naadi.cum = tmp
+    try:
+        for j in js:
+            r = refine(S.naadi, j, t_dep, calib=S.calib_live if live else None)
+            if r is not None:
+                refined.append(r)
+    finally:
+        if live:
+            S.naadi.cum = cum_saved
     if live and refined:
         _, cum_live, _ = S.naadi.tables(t_dep, mult)
         refined = [apply_live_first_wait(j, t_dep, cum_live) for j in refined]
@@ -401,12 +418,13 @@ def departures(stop_id: int):
     nb = S.live.next_buses(rs, t, cum_h, max_ahead_s=2700)
     by = defaultdict(list)
     for r_s, eta, pid in nb:
-        by[int(r_s)].append(round((eta - t) / 60, 1))
+        if eta >= t - 30:
+            by[int(r_s)].append(max(0.0, round((eta - t) / 60, 1)))
     rows = []
     for r_s in rs:
         r = int(n.rs_route[r_s])
         ew = (1 - w) * wait[h0, r_s] + w * wait[h1, r_s]
-        rows.append({"route": re.sub(r"(UP|DOWN)\d*$", "", n.route_short[r]), "route_variant": n.route_short[r],
+        rows.append({"route": re.sub(r"(UP|DOWN)\d*$", "", n.route_short[r]).strip(), "route_variant": n.route_short[r].strip(),
                      "towards": n.route_desc[r].split(" to ")[-1] if n.route_desc[r] else "",
                      "live_eta_min": by.get(r_s, [])[:3],
                      "typical_wait_min": None if not np.isfinite(ew) or ew > 1e8 else round(float(ew) / 60, 1)})

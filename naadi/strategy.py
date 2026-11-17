@@ -70,8 +70,10 @@ def attractive_set(cands):
     return chosen, min(1.0 / R, 3600.0), RR / R
 
 
-def refine(pl: Planner, j: Journey, t_dep: float) -> Journey | None:
-    """Re-time a journey with common lines at every boarding; returns None if a leg has no service."""
+def refine(pl: Planner, j: Journey, t_dep: float, calib=None) -> Journey | None:
+    """Re-time a journey with common lines at every boarding; returns None if a leg has no service.
+    calib = (wait factor, ride factor) fitted on replayed journeys (scripts/build_summary.py); default pl.calib."""
+    cw, cr = calib if calib is not None else getattr(pl, "calib", (1.0, 1.0))
     t = t_dep
     legs = []
     for l in j.legs:
@@ -83,6 +85,7 @@ def refine(pl: Planner, j: Journey, t_dep: float) -> Journey | None:
         chosen, ew, er = attractive_set(leg_options(pl, l.from_stop, l.to_stop, t))
         if not chosen:
             return None
+        ew, er = ew * cw, er * cr
         nl = replace(l, t0=t, t1=t + ew + er, wait_s=ew, ride_s=er)
         nl.alternatives = [(c[0], c[1], c[2], c[3]) for c in chosen]
         legs.append(nl)

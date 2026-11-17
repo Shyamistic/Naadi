@@ -1,0 +1,371 @@
+{
+ "updated": "2026-11-17T16:46+05:30",
+ "eta": {
+  "caption": "Mean absolute error predicting when a bus reaches a stop 1 to 30 stops ahead (1,987,389 predictions, held-out days 26 to 31 Oct 2026). Lower is better.",
+  "rows": [
+   [
+    "Bus's own recent speed",
+    280.3811634997551
+   ],
+   [
+    "Official timetable",
+    273.58342006035934
+   ],
+   [
+    "City speed curve",
+    235.06666160259715
+   ],
+   [
+    "Historical average",
+    173.10831265393708
+   ],
+   [
+    "Empirical-Bayes history",
+    168.7681316545877
+   ],
+   [
+    "Naadi history only",
+    165.49781170670423
+   ],
+   [
+    "Live only (30 min)",
+    157.22437513078862
+   ],
+   [
+    "Naadi (history + live)",
+    134.67666750039606
+   ]
+  ]
+ },
+ "journeys": {
+  "lines": [
+   "Door to door, replayed on the buses that really ran on held-out days: Naadi's predicted time was off by 18.0 min on average (median 8.7); a timetable planner by 23.8 min.",
+   "Against the Transport Stack ETA Calculator on 88,620 of its own live answers: Naadi 8.0 min mean error vs 12.5 min.",
+   "Against Google Maps (bus only, 91 replayed trips): Google's predicted door-to-door time was off by 36 min on average, Naadi's by 12 min.",
+   "Naadi's 80% range (history) contained the actual time for 78% of 3,600 test journeys.",
+   "Naadi's 80% range (live) contained the actual time for 78% of 3,595 test journeys."
+  ],
+  "report": {
+   "naadi": {
+    "raw": {
+     "n": 3600,
+     "mae_min": 20.080397960278724,
+     "median_abs_min": 9.038822213808695,
+     "bias_min": -16.105038083884452,
+     "median_err_min": -5.969928322235743,
+     "within_5min_pct": 32.88888888888889,
+     "within_10min_pct": 52.97222222222222,
+     "mape_pct": 25.862367067185417
+    },
+    "calibrated": {
+     "n": 3600,
+     "mae_min": 18.71810496817719,
+     "median_abs_min": 9.045841858051404,
+     "bias_min": -12.157233308543429,
+     "median_err_min": -2.4637872109564816,
+     "within_5min_pct": 32.80555555555556,
+     "within_10min_pct": 53.583333333333336,
+     "mape_pct": 25.38367329485269
+    },
+    "by_slot_mae_min": {
+     "07:30": 14.592499750367903,
+     "08:30": 12.771405653730179,
+     "10:00": 13.53199583517161,
+     "13:00": 27.590300171421248,
+     "16:00": 21.094575855857627,
+     "18:00": 24.129641495967707,
+     "20:00": 21.64535474116347,
+     "22:30": 13.02028533876469
+    }
+   },
+   "naadi_live": {
+    "raw": {
+     "n": 3595,
+     "mae_min": 19.407262994069217,
+     "median_abs_min": 8.582771213849385,
+     "bias_min": -15.542089791822942,
+     "median_err_min": -5.363884862263998,
+     "within_5min_pct": 34.38108484005563,
+     "within_10min_pct": 54.4923504867872,
+     "mape_pct": 24.846970743459913
+    },
+    "calibrated": {
+     "n": 3595,
+     "mae_min": 17.99372744007975,
+     "median_abs_min": 8.695852218030536,
+     "bias_min": -10.992044145916791,
+     "median_err_min": -1.458351230381883,
+     "within_5min_pct": 33.296244784422804,
+     "within_10min_pct": 54.46453407510431,
+     "mape_pct": 24.577711550323276
+    },
+    "by_slot_mae_min": {
+     "07:30": 14.52748445482109,
+     "08:30": 12.870686853040745,
+     "10:00": 12.961625843828314,
+     "13:00": 26.10252674099621,
+     "16:00": 19.126932047976812,
+     "18:00": 23.589497564830488,
+     "20:00": 20.822323861037297,
+     "22:30": 12.913711480203881
+    }
+   },
+   "timetable": {
+    "raw": {
+     "n": 3330,
+     "mae_min": 27.201359769122618,
+     "median_abs_min": 13.779809161027272,
+     "bias_min": -24.09940769288752,
+     "median_err_min": -11.626420269409815,
+     "within_5min_pct": 25.435435435435434,
+     "within_10min_pct": 41.711711711711715,
+     "mape_pct": 34.1359874201163
+    },
+    "calibrated": {
+     "n": 3330,
+     "mae_min": 23.812731121110918,
+     "median_abs_min": 12.979236303618032,
+     "bias_min": -14.407166335466977,
+     "median_err_min": -3.7216715076435625,
+     "within_5min_pct": 22.58258258258258,
+     "within_10min_pct": 41.11111111111111,
+     "mape_pct": 34.34863644113466
+    },
+    "by_slot_mae_min": {
+     "07:30": 17.396614994414215,
+     "08:30": 15.289294425878749,
+     "10:00": 16.26242339004755,
+     "13:00": 32.88476883171436,
+     "16:00": 28.266086812364755,
+     "18:00": 33.124518885650794,
+     "20:00": 28.451496316942425,
+     "22:30": 16.48608259146475
+    }
+   }
+  },
+  "test_days": [
+   "2026_10_29",
+   "2026_10_30",
+   "2026_10_31"
+  ]
+ },
+ "intervals": {
+  "history": {
+   "bands": [
+    {
+     "max_min": 30,
+     "q_lo": -0.3322590574103798,
+     "q_hi": 0.5883854981347083
+    },
+    {
+     "max_min": 60,
+     "q_lo": -0.2899562479396587,
+     "q_hi": 0.6411864597052593
+    },
+    {
+     "max_min": 90,
+     "q_lo": -0.2171970957355364,
+     "q_hi": 0.5611043024549233
+    },
+    {
+     "max_min": 9999,
+     "q_lo": -0.14660788560389082,
+     "q_hi": 0.5696809756574369
+    }
+   ],
+   "nominal": 0.8,
+   "test_coverage": 0.7783333333333333,
+   "n_test": 3600
+  },
+  "live": {
+   "bands": [
+    {
+     "max_min": 30,
+     "q_lo": -0.352269504855013,
+     "q_hi": 0.6112524454275542
+    },
+    {
+     "max_min": 60,
+     "q_lo": -0.29501936800312784,
+     "q_hi": 0.5724126684342538
+    },
+    {
+     "max_min": 90,
+     "q_lo": -0.21964156415262862,
+     "q_hi": 0.541330145587764
+    },
+    {
+     "max_min": 9999,
+     "q_lo": -0.19249941959722025,
+     "q_hi": 0.5316585469200795
+    }
+   ],
+   "nominal": 0.8,
+   "test_coverage": 0.7847009735744089,
+   "n_test": 3595
+  },
+  "timetable": {
+   "bands": [
+    {
+     "max_min": 30,
+     "q_lo": -0.39596780290090816,
+     "q_hi": 0.8888802520852898
+    },
+    {
+     "max_min": 60,
+     "q_lo": -0.4438102355153387,
+     "q_hi": 0.7993985844328679
+    },
+    {
+     "max_min": 90,
+     "q_lo": -0.3039882376210205,
+     "q_hi": 0.7672803590996696
+    },
+    {
+     "max_min": 9999,
+     "q_lo": -0.23525756185191196,
+     "q_hi": 0.7028434834046843
+    }
+   ],
+   "nominal": 0.8,
+   "test_coverage": 0.790990990990991,
+   "n_test": 3330
+  }
+ },
+ "calibration": {
+  "naadi": {
+   "wait": 0.8500000000000001,
+   "ride": 1.1600000000000001
+  },
+  "naadi_live": {
+   "wait": 0.8,
+   "ride": 1.1900000000000004
+  },
+  "timetable": {
+   "wait": 1.7500000000000009,
+   "ride": 1.1700000000000004
+  }
+ },
+ "eta_calculator": {
+  "days": [
+   "2026_11_15",
+   "2026_11_16"
+  ],
+  "n": 88620,
+  "methods": {
+   "ETA Calculator (Transport Stack)": {
+    "mae_min": 12.49514914977217,
+    "median_abs_min": 7.256761360168457,
+    "within_2min_pct": 12.440758293838861,
+    "bias_min": 0.8829333388330542,
+    "by_band_mae_min": {
+     "0-5 min": 6.1201770306550545,
+     "5-10 min": 6.776921999931224,
+     "10-20 min": 7.951081226098196,
+     "20-40 min": 9.698188991726315,
+     "40+ min": 26.148217126586637
+    }
+   },
+   "Naadi history": {
+    "mae_min": 8.985995290377945,
+    "median_abs_min": 2.531546445687612,
+    "within_2min_pct": 43.78695554051004,
+    "bias_min": -2.9370239799181226,
+    "by_band_mae_min": {
+     "0-5 min": 1.1953502133013676,
+     "5-10 min": 2.1543836479760476,
+     "10-20 min": 3.570959494296432,
+     "20-40 min": 5.851575467571876,
+     "40+ min": 25.172911957765585
+    }
+   },
+   "Naadi history + live": {
+    "mae_min": 8.00973007699791,
+    "median_abs_min": 1.651578805843989,
+    "within_2min_pct": 55.29113067027759,
+    "bias_min": -5.149931712018926,
+    "by_band_mae_min": {
+     "0-5 min": 1.00902934204699,
+     "5-10 min": 1.683553574185038,
+     "10-20 min": 2.7092912224877512,
+     "20-40 min": 4.400329644103061,
+     "40+ min": 23.859117187142264
+    }
+   }
+  }
+ },
+ "google": {
+  "days": [
+   "2026-11-15",
+   "2026-11-16"
+  ],
+  "google_cases": 187,
+  "both_replayed": 91,
+  "google_match_status": {
+   "google line '425' not matched": 5,
+   "ok": 97,
+   "google line 'DW4' not matched": 2,
+   "google line '740EXT.' not matched": 2,
+   "no bus observed": 11,
+   "boarding stop poorly captured": 17,
+   "google line 'ETAWAHTOLONIVIABAH' not matched": 2,
+   "google line '175' not matched": 2,
+   "google line '118EXT.' not matched": 2,
+   "google line 'CBD(+)' not matched": 2,
+   "google line '214' not matched": 2,
+   "google line 'KAROLBAGH-GURUGRAM' not matched": 2,
+   "google line 'YELLOWLINE' not matched": 2,
+   "google line '113EXT.' not matched": 2,
+   "google line '73' not matched": 2,
+   "google line '988' not matched": 2,
+   "google line '33' not matched": 2,
+   "google line '801STL' not matched": 2,
+   "google line '116A' not matched": 2,
+   "google line '136' not matched": 2,
+   "google line '523' not matched": 2,
+   "google line '990ASTL' not matched": 2,
+   "google line 'DW3' not matched": 2,
+   "google line '2001' not matched": 2,
+   "google line '405' not matched": 2,
+   "no bus within 3 h": 1,
+   "google line '130' not matched": 1,
+   "google line '978' not matched": 1,
+   "google line 'DS-22' not matched": 1,
+   "google line '935' not matched": 1,
+   "google line 'OMS(+)BURARI-DHAULAKUAN' not matched": 1,
+   "google line '181A' not matched": 1,
+   "google line '972' not matched": 1,
+   "google line '221' not matched": 1,
+   "google line 'YMS(+)' not matched": 1,
+   "google line 'TMS(-)' not matched": 1,
+   "google line '7104' not matched": 1,
+   "google line '205' not matched": 1,
+   "google line '429' not matched": 1,
+   "google line '0740NS' not matched": 1
+  },
+  "google": {
+   "mae_min": 36.49860367037001,
+   "median_abs_min": 26.69635380109151,
+   "bias_min": -36.39994288787737,
+   "within_10min_pct": 21.978021978021978
+  },
+  "naadi": {
+   "mae_min": 12.270709623216273,
+   "median_abs_min": 7.166576313972473,
+   "bias_min": -4.087266108535585,
+   "within_10min_pct": 62.637362637362635
+  },
+  "mae_diff_naadi_minus_google_min": {
+   "mean": -24.27424269269978,
+   "ci95": [
+    -31.30275935734912,
+    -17.782564382355517
+   ]
+  },
+  "actual_time_median_min": {
+   "google_itinerary": 59.611536928017934,
+   "naadi_itinerary": 45.00669439236323
+  },
+  "naadi_itinerary_faster_pct": 72.52747252747253
+ }
+}
