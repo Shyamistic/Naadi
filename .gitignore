@@ -18,3 +18,9 @@ __pycache__/
 data/*.log
 data/*.err
 data/reports/
+data/
+web/dist/
+web/node_modules/
+*.tsbuildinfo
+validation/results/*.parquet
+.pytest_cache/
