@@ -1,0 +1,1 @@
+export function Logo(){return <a className="logo" href="/" data-testid="header-home" aria-label="Naadi home"><svg viewBox="-50 -50 100 100" aria-hidden="true"><circle r="44" fill="none" stroke="currentColor" strokeWidth="6"/><circle r="8" fill="var(--color-saffron)"/></svg><span>Naadi <b>नाड़ी</b></span></a>}

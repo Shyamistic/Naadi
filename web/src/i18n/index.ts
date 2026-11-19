@@ -1,0 +1,24 @@
+import { planEn } from "../features/plan/strings.en";
+import { planHi } from "../features/plan/strings.hi";
+import { resultsEn } from "../features/results/strings.en";
+import { resultsHi } from "../features/results/strings.hi";
+import { journeyEn } from "../features/journey/strings.en";
+import { journeyHi } from "../features/journey/strings.hi";
+import { stopEn } from "../features/stop/strings.en";
+import { stopHi } from "../features/stop/strings.hi";
+import { routeEn } from "../features/route/strings.en";
+import { routeHi } from "../features/route/strings.hi";
+import { liveEn } from "../features/live/strings.en";
+import { liveHi } from "../features/live/strings.hi";
+import { speedsEn } from "../features/speeds/strings.en";
+import { speedsHi } from "../features/speeds/strings.hi";
+import { accuracyEn } from "../features/accuracy/strings.en";
+import { accuracyHi } from "../features/accuracy/strings.hi";
+import { pagesEn } from "../features/pages/strings.en";
+import { pagesHi } from "../features/pages/strings.hi";
+export const en = { ...planEn, ...resultsEn, ...journeyEn, ...stopEn, ...routeEn, ...liveEn, ...speedsEn, ...accuracyEn, ...pagesEn } as const;
+export const hi: Record<keyof typeof en, string> = { ...planHi, ...resultsHi, ...journeyHi, ...stopHi, ...routeHi, ...liveHi, ...speedsHi, ...accuracyHi, ...pagesHi };
+export type Lang = "en" | "hi";
+export type TranslationKey = keyof typeof en;
+export type TranslationVars = Record<string, string | number>;
+export function translate(lang: Lang, key: TranslationKey, vars?: TranslationVars): string { let text = (lang === "hi" ? hi : en)[key] ?? en[key]; return vars ? text.replace(/\{(\w+)\}/g, (_, name: string) => String(vars[name] ?? `{${name}}`)) : text; }
