@@ -28,6 +28,7 @@ from .network import Network, haversine
 from .nowcast import NowcastParams
 from .router import IST_S, Planner, _hw
 from .strategy import refine
+from .trails import router as trails_router
 
 ROOT = Path(os.environ.get("NAADI_ROOT", Path(__file__).resolve().parents[1]))
 MODEL = ROOT / "data" / "processed" / "model"
@@ -128,6 +129,7 @@ app = FastAPI(title="Naadi API", version="1.0",
                           "Times come from 31 days of real bus GPS (Oct 2026) plus a live nowcast. " + ATTRIBUTION)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.include_router(trails_router)
 _hits: dict[str, deque] = defaultdict(deque)
 
 
