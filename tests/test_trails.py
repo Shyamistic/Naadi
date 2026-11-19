@@ -45,6 +45,13 @@ def test_all_chunks_size_and_privacy():
             assert all(0 <= s <= 80 for s in trip["s"])
 
 
+def test_trip_order_is_shuffled():
+    payload = json.loads(gzip.decompress((OUT / "weekday_08.json.gz").read_bytes()))
+    routes = [trip["r"] for trip in payload["trips"]]
+    assert len(routes) > 2
+    assert routes != sorted(routes)
+
+
 def test_router_serves_gzip_and_cache_headers():
     client = TestClient(_app())
     r = client.get("/trails/index")
