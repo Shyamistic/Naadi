@@ -1,7 +1,7 @@
 import type { StyleSpecification } from "maplibre-gl";
 import { palettes } from "./palettes";
-const nameExpression=["coalesce",["get","name:hi"],["get","name:en"],["get","name_en"],["get","name"]] as unknown as any;
-export function buildStyle(theme:"light"|"dark", language:"en"|"hi"="en"):StyleSpecification{const p=palettes[theme];const label=language==="hi"?nameExpression:["coalesce",["get","name:en"],["get","name_en"],["get","name"]];return {version:8,glyphs:"https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",sources:{omt:{type:"vector",url:"https://tiles.openfreemap.org/planet"}},layers:[
+const nameExpression=["coalesce",["get","name:hi"],["get","name:en"],["get","name_en"],["get","name"]] as unknown as string[];
+export function buildStyle(theme:"light"|"dark", language:"en"|"hi"="en"):StyleSpecification{const p=palettes[theme];const label=language==="hi"?nameExpression:["coalesce",["get","name:en"],["get","name_en"],["get","name"]];return ({version:8,glyphs:"https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",sources:{omt:{type:"vector",url:"https://tiles.openfreemap.org/planet"}},layers:[
 {id:"background",type:"background",paint:{"background-color":p.background}},
 {id:"landuse-residential",type:"fill",source:"omt", "source-layer":"landuse",minzoom:10,filter:["in","class","residential","suburb","neighbourhood"],paint:{"fill-color":p.residential}},
 {id:"landcover-green",type:"fill",source:"omt","source-layer":"landcover",filter:["in","class","wood","grass","wetland"],paint:{"fill-color":p.green}},
@@ -20,4 +20,5 @@ export function buildStyle(theme:"light"|"dark", language:"en"|"hi"="en"):StyleS
 {id:"label-transit",type:"symbol",source:"omt","source-layer":"poi",minzoom:14,filter:["==","class","railway"],layout:{"text-field":label,"text-font":["Noto Sans Regular"],"text-size":11},paint:{"text-color":p.muted}},
 {id:"label-place-minor",type:"symbol",source:"omt","source-layer":"place",minzoom:12,filter:["in","class","suburb","neighbourhood","quarter"],layout:{"text-field":label,"text-font":["Noto Sans Regular"],"text-size":12},paint:{"text-color":p.muted}},
 {id:"label-place-major",type:"symbol",source:"omt","source-layer":"place",minzoom:8,filter:["in","class","city","town","village"],layout:{"text-field":label,"text-font":["Noto Sans Bold"],"text-size":15},paint:{"text-color":p.text,"text-halo-color":p.halo,"text-halo-width":1}}
-]};}
+]} as unknown as StyleSpecification);}
+

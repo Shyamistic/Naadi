@@ -1,0 +1,1 @@
+export function MapAttribution(){return <div className="map-attribution"><a data-testid="attr-osm" href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a> · <a data-testid="attr-ofm" href="https://openfreemap.org/">OpenFreeMap</a> · <a data-testid="attr-omt" href="https://www.openmaptiles.org/">OpenMapTiles</a></div>}
