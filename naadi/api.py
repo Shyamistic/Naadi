@@ -462,3 +462,6 @@ def about():
     return {"name": "Naadi (नाड़ी)", "version": VERSION, "attribution": ATTRIBUTION,
             "licence_note": "Raw data is not redistributed. Derived travel times only.",
             "source": "Transport Stack Hackathon 2026, Problem 1."}
+
+from .webapi import router as _webapi_router  # noqa: E402  web app endpoints (additive)
+app.include_router(_webapi_router)
