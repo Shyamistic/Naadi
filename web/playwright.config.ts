@@ -8,7 +8,7 @@ export default defineConfig({
   retries: 1,
   workers: 2,
   reporter: [['list'], ['json', { outputFile: 'test-results/e2e.json' }]],
-  webServer: { command: 'npm run build && npx vite preview --port 4173 --strictPort', port: 4173, reuseExistingServer: !process.env.CI, env: { NAADI_API_TARGET: process.env.NAADI_API_TARGET ?? 'http://127.0.0.1:8000' } },
+  webServer: { command: 'npm run build && npx vite preview --host 127.0.0.1 --port 4173 --strictPort', port: 4173, reuseExistingServer: !process.env.CI, env: { NAADI_API_TARGET: process.env.NAADI_API_TARGET ?? 'http://127.0.0.1:8000' } },
   use: { baseURL: 'http://127.0.0.1:4173', ...chrome, trace: 'retain-on-failure' },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, ...chrome } },
