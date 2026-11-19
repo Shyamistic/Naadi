@@ -1,0 +1,17 @@
+import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "./client";
+import type { AccuracySummary, About, Capabilities, Departures, Health, JourneyResponse, LegNextBuses, LiveBuses, RouteDetail, RouteSearch, SpeedCells, StopSearchResult, StopsAll, StopsNearby } from "./types";
+export const useHealth=()=>useQuery({queryKey:["health"],queryFn:()=>apiGet<Health>("/health"),refetchInterval:60000,staleTime:30000});
+export const useCapabilities=()=>useQuery({queryKey:["capabilities"],queryFn:()=>apiGet<Capabilities>("/capabilities"),staleTime:Infinity,retry:false});
+export const useStopSearch=(q:string)=>useQuery({queryKey:["stops-search",q],queryFn:()=>apiGet<StopSearchResult>(`/stops/search?q=${encodeURIComponent(q)}&limit=6`),enabled:q.trim().length>=2,staleTime:300000});
+export const useJourneys=(params:string)=>useQuery({queryKey:["journeys",params],queryFn:()=>apiGet<JourneyResponse>(`/journeys?${params}`,{timeoutMs:30000}),enabled:Boolean(params),retry:false});
+export const useDepartures=(id:number)=>useQuery({queryKey:["departures",id],queryFn:()=>apiGet<Departures>(`/stops/${id}/departures`),refetchInterval:30000});
+export const useRouteSearch=(q:string)=>useQuery({queryKey:["route-search",q],queryFn:()=>apiGet<RouteSearch>(`/routes/search?q=${encodeURIComponent(q)}`),enabled:q.length>0,staleTime:600000});
+export const useRouteDetail=(id:string,dayType="weekday",hour=12)=>useQuery({queryKey:["route",id,dayType,hour],queryFn:()=>apiGet<RouteDetail>(`/routes/${id}?day_type=${dayType}&hour=${hour}`),staleTime:600000});
+export const useLiveBuses=(route?:string)=>useQuery({queryKey:["live",route],queryFn:()=>apiGet<LiveBuses>(`/live/buses${route?`?route_id=${route}`:""}`),refetchInterval:15000});
+export const useSpeedCells=()=>useQuery({queryKey:["cells"],queryFn:()=>apiGet<SpeedCells>("/speeds/cells"),staleTime:Infinity});
+export const useAccuracy=()=>useQuery({queryKey:["accuracy"],queryFn:()=>apiGet<AccuracySummary>("/accuracy"),staleTime:600000});
+export const useAbout=()=>useQuery({queryKey:["about"],queryFn:()=>apiGet<About>("/about"),staleTime:Infinity});
+export const useStopsAll=()=>useQuery({queryKey:["stops-all"],queryFn:()=>apiGet<StopsAll>("/stops/all"),staleTime:Infinity});
+export const useNearby=(lat:number,lon:number)=>useQuery({queryKey:["nearby",lat.toFixed(4),lon.toFixed(4)],queryFn:()=>apiGet<StopsNearby>(`/stops/nearby?lat=${lat}&lon=${lon}&radius_m=600&limit=5`),enabled:Boolean(lat&&lon),staleTime:300000});
+export const useLegNextBuses=(board:number|string,alight:number|string,enabled=true)=>useQuery({queryKey:["leg-next",board,alight],queryFn:()=>apiGet<LegNextBuses>(`/legs/next-buses?board=${board}&alight=${alight}`),enabled,refetchInterval:20000});
