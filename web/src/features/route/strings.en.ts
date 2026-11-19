@@ -1,1 +1,1 @@
-export const routeEn = { "route.title": "Route", "route.other": "Other direction" } as const;
+export const routeEn = { "route.title": "Route", "route.other": "Other direction", "route.weekday": "Weekday", "route.weekend": "Weekend", "route.busesHour": "buses an hour now", "route.endToEnd": "end to end now", "route.live": "live buses now" } as const;

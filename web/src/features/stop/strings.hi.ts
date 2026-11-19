@@ -1,1 +1,1 @@
-export const stopHi = { "stop.title": "बस स्टॉप", "stop.departures": "रवानगी" } as const;
+export const stopHi = { "stop.title": "बस स्टॉप", "stop.departures": "रवानगी", "stop.planFrom": "यहाँ से योजना बनाएँ", "stop.planTo": "यहाँ तक योजना बनाएँ", "stop.updated": "{seconds} सेकंड पहले अपडेट", "stop.refresh": "हर 30 सेकंड में अपडेट", "stop.all": "सभी", "stop.live": "लाइव" } as const;

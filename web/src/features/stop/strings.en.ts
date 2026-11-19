@@ -1,1 +1,1 @@
-export const stopEn = { "stop.title": "Bus stop", "stop.departures": "Departures" } as const;
+export const stopEn = { "stop.title": "Bus stop", "stop.departures": "Departures", "stop.planFrom": "Plan from here", "stop.planTo": "Plan to here", "stop.updated": "Updated {seconds} s ago", "stop.refresh": "Refreshes every 30 s", "stop.all": "All", "stop.live": "Live" } as const;

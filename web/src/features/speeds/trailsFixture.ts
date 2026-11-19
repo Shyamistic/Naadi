@@ -1,0 +1,4 @@
+export type TrailTrip = { r: string; c: [number, number][]; t: number[]; s: number[] };
+export type TrailChunk = { day_type: "weekday" | "weekend"; hour: number; t0: number; trips: TrailTrip[] };
+export const trailIndex = { version: 1, source: "Local preview fixture until the trails endpoint is available", day_types: ["weekday", "weekend"], hours: Array.from({ length: 24 }, (_, hour) => hour), buses_per_hour: { weekday: Array.from({ length: 24 }, () => 0), weekend: Array.from({ length: 24 }, () => 0) }, city_speed_kmh: { weekday: Array.from({ length: 24 }, () => 0), weekend: Array.from({ length: 24 }, () => 0) }, speed_bins_kmh: [0, 5, 10, 15, 20, 25, 30, 40] };
+export const trailChunk = (day: "weekday" | "weekend", hour: number): TrailChunk => ({ day_type: day, hour, t0: hour * 3600, trips: [{ r: "preview", c: [[77.21, 28.62], [77.22, 28.625], [77.23, 28.63]], t: [hour * 3600, hour * 3600 + 30, hour * 3600 + 60], s: [18, 20, 22] }] });

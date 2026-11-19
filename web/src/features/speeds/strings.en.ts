@@ -1,1 +1,1 @@
-export const speedsEn = { "speeds.title": "Road speeds" } as const;
+export const speedsEn = { "speeds.title": "Road speeds", "speeds.play": "Play the day", "speeds.pause": "Pause", "speeds.hour": "Hour", "speeds.weekday": "Weekday", "speeds.weekend": "Weekend", "speeds.taller": "Taller columns are slower" } as const;

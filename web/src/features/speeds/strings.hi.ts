@@ -1,1 +1,1 @@
-export const speedsHi = { "speeds.title": "सड़कों पर रफ़्तार" } as const;
+export const speedsHi = { "speeds.title": "सड़कों पर रफ़्तार", "speeds.play": "दिन चलाएँ", "speeds.pause": "रोकें", "speeds.hour": "घंटा", "speeds.weekday": "कार्यदिवस", "speeds.weekend": "सप्ताहांत", "speeds.taller": "ऊँचे कॉलम धीमी गति दिखाते हैं" } as const;

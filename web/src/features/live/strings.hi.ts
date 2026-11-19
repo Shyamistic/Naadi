@@ -1,1 +1,1 @@
-export const liveHi = { "live.title": "लाइव बसें", "live.privacy": "बस आईडी गुमनाम हैं।" } as const;
+export const liveHi = { "live.title": "लाइव बसें", "live.privacy": "बस आईडी गुमनाम हैं। लाइसेंस प्लेट कभी नहीं दिखाई जातीं।", "live.filter": "रूट फ़िल्टर", "live.clear": "रूट फ़िल्टर हटाएँ", "live.underTwo": "2 मिनट से कम पुरानी स्थिति", "live.older": "पुरानी स्थिति", "live.group": "बसों का समूह" } as const;
