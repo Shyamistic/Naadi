@@ -21,11 +21,8 @@ sys.path.insert(0, str(ROOT))
 from naadi.linkgrid import LinkGrid  # noqa: E402
 from naadi.nowcast import NowcastParams, ResidualIndex, correction  # noqa: E402
 
-WORK = ROOT / "data" / "processed" / "speed_tables" / "_work"
-MODEL = ROOT / "data" / "processed" / "model"
-L2 = ROOT / "data" / "processed" / "gps_l2"
-ETA = ROOT / "data" / "raw" / "eta_s3"
-RES = ROOT / "validation" / "results"
+from naadi.paths import ETA, L2, MODEL, RESULTS, TMP, WORK
+RES = RESULTS
 BANDS = [("0-5 min", 0, 5), ("5-10 min", 5, 10), ("10-20 min", 10, 20), ("20-40 min", 20, 40), ("40+ min", 40, 1e9)]
 
 
@@ -73,7 +70,7 @@ def cases(con, day: str, sample_pct: float) -> dict:
 
 def main() -> None:
     con = duckdb.connect()
-    con.execute(f"SET TimeZone='UTC'; SET memory_limit='6GB'; SET threads=8; SET temp_directory='{(ROOT / 'data' / 'tmp_duckdb').as_posix()}'")
+    con.execute(f"SET TimeZone='UTC'; SET memory_limit='3GB'; SET threads=6; SET temp_directory='{TMP.as_posix()}'")
     days = sorted(p.stem.split("=")[1] for p in L2.glob("day=2026_11_*.parquet"))
     days = [d for d in days if (ETA / f"date={d.replace('_', '-')}").exists()]
     grid = LinkGrid(MODEL / "grid_oct_all.parquet", methods=("gbm",))

@@ -32,9 +32,7 @@ sys.path.insert(0, str(ROOT))
 from naadi.linkgrid import LinkGrid  # noqa: E402
 from naadi.nowcast import NowcastParams, ResidualIndex, correction  # noqa: E402
 
-WORK = ROOT / "data" / "processed" / "speed_tables" / "_work"
-MODEL = ROOT / "data" / "processed" / "model"
-RES = ROOT / "validation" / "results"
+from naadi.paths import MODEL, RESULTS, WORK
 HORIZONS = [1, 2, 3, 5, 8, 12, 16, 20, 25, 30]
 BANDS = [("1-2 stops", 1, 2), ("3-5 stops", 3, 5), ("8-12 stops", 8, 12), ("16-30 stops", 16, 30)]
 TOD = [("night 00-06", 0, 6), ("morning peak 07-10", 7, 10), ("midday 11-16", 11, 16),

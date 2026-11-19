@@ -9,12 +9,10 @@ the boarding stop's passages that day are under 60% of the route's typical stop 
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import duckdb
 import numpy as np
 
-WORK = Path(__file__).resolve().parents[1] / "data" / "processed" / "speed_tables" / "_work"
+from .paths import WORK
 NEAR = 3
 
 
@@ -76,6 +74,8 @@ def realise(net, j, day: DayPassages):
         if l.kind == "walk":
             t += l.t1 - l.t0
             continue
+        if l.kind == "metro":
+            return None, "metro leg"
         alts = getattr(l, "alternatives", None) or [(l.route, l.board_rs, l.alight_rs, 1.0)]
         best = None
         any_captured = False
