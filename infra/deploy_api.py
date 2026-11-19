@@ -22,6 +22,7 @@ REGION = "ap-south-1"
 IID = "i-02e366d4128da827b"
 CADDY = "https://github.com/caddyserver/caddy/releases/download/v2.10.2/caddy_2.10.2_linux_arm64.tar.gz"
 MODEL_FILES = ["data/processed/model/network_prod/network.npz", "data/processed/model/network_prod/network_meta.json",
+               "data/processed/model/network_prod_mm/network.npz", "data/processed/model/network_prod_mm/network_meta.json",
                "data/processed/model/grid_oct_all.parquet", "data/processed/model/tables/oct_all/geom.parquet",
                "data/processed/model/tables/oct_all/cell_h.parquet", "data/processed/model/intervals.json",
                "data/processed/model/route_ac.json", "data/processed/model/calibration.json", "validation/results/eta_oct.json", "validation/results/summary.json"]
