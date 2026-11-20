@@ -1,0 +1,9 @@
+import type { JourneyResponse, Leg, OptionBase } from "../../api/types";
+export type OptionVM = OptionBase & { key: `bus-${number}` | `metro-${number}`; kind: "bus" | "metro"; hiddenWalks: boolean[]; signature: string };
+export type PlanVM = { query: JourneyResponse["query"]; bus: OptionVM[]; metro: OptionVM[]; metroNote: string | null };
+function finite(value: number | null | undefined) { return typeof value === "number" && Number.isFinite(value) ? value : null; }
+export function optionSignature(option: OptionBase) { return option.legs.map((leg) => { if (leg.type === "bus" || leg.type === "metro") return `${leg.type}:${leg.type === "bus" ? leg.route : leg.line}:${leg.board.name}:${leg.alight.name}`; return leg.type; }).join("|"); }
+function toVM(option: OptionBase, kind: "bus" | "metro", index: number): OptionVM { const safe = { ...option, total_min: finite(option.total_min) ?? 0, wait_min: finite(option.wait_min) ?? 0, ride_min: finite(option.ride_min) ?? 0, walk_m: finite(option.walk_m) ?? 0, hiddenWalks: option.legs.map((leg) => leg.type === "walk" && leg.metres < 15 && !leg.interchange), key: `${kind}-${index}` as `bus-${number}` | `metro-${number}`, kind, signature: optionSignature(option) }; return safe; }
+function dedupe(options: OptionBase[], kind: "bus" | "metro") { const seen = new Set<string>(); return options.flatMap((option, index) => { const signature = optionSignature(option); if (seen.has(signature)) return []; seen.add(signature); return [toVM(option, kind, index)]; }); }
+export function normalizeJourney(response: JourneyResponse): PlanVM { return { query: response.query, bus: dedupe(response.options, "bus"), metro: dedupe(response.multimodal_options ?? [], "metro"), metroNote: response.multimodal_note ?? null }; }
+export function isRiderLeg(leg: Leg) { return leg.type === "bus" || leg.type === "metro"; }
