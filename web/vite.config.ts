@@ -5,7 +5,7 @@ import { pwaPlugin } from "./pwa.config";
 const apiTarget = process.env.NAADI_API_TARGET ?? "https://13-235-147-97.sslip.io";
 const targetUrl = new URL(apiTarget);
 const apiBase = targetUrl.pathname === "/" ? "" : targetUrl.pathname.replace(/\/$/, "");
-const proxyPath = (path: string) => apiBase ? `${apiBase}${path.replace(/^\/api/, "")}` : path;
+const proxyPath = (path: string) => `${apiBase}${path.replace(/^\/api/, "")}`;
 
 export default defineConfig({
   plugins: [react(), pwaPlugin],

@@ -30,9 +30,10 @@ export function MapHost({ children }: { children?: ReactNode }) {
       if (!map || !coords.length) return;
       const valid = coords.filter(([lon, lat]) => Number.isFinite(lon) && Number.isFinite(lat));
       if (!valid.length) return;
-      const bounds = valid.reduce((result, coordinate) => result.extend(coordinate), new maplibregl.LngLatBounds(valid[0], valid[0]));
+      const lons = valid.map(([lon]) => lon); const lats = valid.map(([, lat]) => lat); const southWest: [number, number] = [Math.min(...lons), Math.min(...lats)]; const northEast: [number, number] = [Math.max(...lons), Math.max(...lats)];
+      const bounds = new maplibregl.LngLatBounds(southWest, northEast);
       const mobile = typeof window !== "undefined" && window.innerWidth < 768;
-      map.fitBounds(bounds, { padding: { top: 72, right: 48, bottom: mobile ? 280 : 72, left: mobile ? 24 : 420 }, maxZoom: opts?.maxZoom, duration: 0 });
+      try { map.fitBounds(bounds, { padding: { top: 72, right: 48, bottom: mobile ? 280 : 72, left: mobile ? 24 : 420 }, maxZoom: opts?.maxZoom, duration: 0 }); } catch { map.flyTo({ center: [(southWest[0] + northEast[0]) / 2, (southWest[1] + northEast[1]) / 2], zoom: opts?.maxZoom ?? 11, duration: 0 }); }
     },
     flyTo: (center, zoom = 15) => map?.flyTo({ center, zoom, duration: 0 }),
     setPickMode: () => undefined,
