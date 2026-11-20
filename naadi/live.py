@@ -64,6 +64,34 @@ def public_id(vehicle_id: str) -> str:
     return hashlib.sha256((SALT + vehicle_id).encode()).hexdigest()[:10]
 
 
+def upcoming(net, buses, now, rs_list, t_at_stop, cum_h, max_ahead_s=3600):
+    """Return upcoming bus arrivals as (route-stop, ETA, anonymised id)."""
+    out = []
+    by_route = {}
+    for b in buses:
+        if b[1] >= 0 and b[5] >= 0:
+            by_route.setdefault(b[1], []).append(b)
+    for rs in rs_list:
+        r = int(net.rs_route[rs])
+        a = int(net.r_ptr[r])
+        sd_stop = float(net.rs_sd[rs])
+        for pid, _, _, _, ts, d in by_route.get(r, []):
+            if d > sd_stop + 20:
+                continue
+            k = int(np.searchsorted(net.rs_sd[a:rs + 1], d, side="right")) - 1 + a
+            k = max(a, min(k, rs))
+            frac = 0.0
+            if k < rs:
+                seg = float(net.rs_sd[k + 1] - net.rs_sd[k])
+                frac = (d - float(net.rs_sd[k])) / seg if seg > 0 else 0.0
+            remain = float(cum_h[rs] - cum_h[k]) - frac * float(cum_h[min(k + 1, rs)] - cum_h[k])
+            eta = ts + max(remain, 0.0)
+            if eta >= now - 60 and eta - now <= max_ahead_s:
+                out.append((rs, eta, pid))
+    out.sort(key=lambda x: x[1])
+    return out
+
+
 class LiveEngine:
     def __init__(self, net: Network, grid, cell_of_link: np.ndarray, snapshot_path: Path, params: NowcastParams):
         self.net, self.grid, self.cell_of_link, self.path, self.p = net, grid, cell_of_link, snapshot_path, params
@@ -194,30 +222,5 @@ class LiveEngine:
 
     def next_buses(self, rs_list, t_at_stop: float, cum_h, max_ahead_s=3600):
         """For route-stops rs_list, upcoming live buses: list of (rs, eta_unix, public_id)."""
-        net = self.net
-        out = []
         with self.lock:
-            now = self.feed_ts
-            by_route = {}
-            for b in self.buses:
-                if b[1] >= 0 and b[5] >= 0:
-                    by_route.setdefault(b[1], []).append(b)
-            for rs in rs_list:
-                r = int(net.rs_route[rs])
-                a = int(net.r_ptr[r])
-                sd_stop = float(net.rs_sd[rs])
-                for pid, _, _, _, ts, d in by_route.get(r, []):
-                    if d > sd_stop + 20:
-                        continue
-                    k = int(np.searchsorted(net.rs_sd[a:rs + 1], d, side="right")) - 1 + a
-                    k = max(a, min(k, rs))
-                    frac = 0.0
-                    if k < rs:
-                        seg = float(net.rs_sd[k + 1] - net.rs_sd[k])
-                        frac = (d - float(net.rs_sd[k])) / seg if seg > 0 else 0.0
-                    remain = float(cum_h[rs] - cum_h[k]) - frac * float(cum_h[min(k + 1, rs)] - cum_h[k])
-                    eta = ts + max(remain, 0.0)
-                    if eta >= now - 60 and eta - now <= max_ahead_s:
-                        out.append((rs, eta, pid))
-        out.sort(key=lambda x: x[1])
-        return out
+            return upcoming(self.net, self.buses, self.feed_ts, rs_list, t_at_stop, cum_h, max_ahead_s)

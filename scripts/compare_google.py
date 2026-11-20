@@ -28,9 +28,7 @@ from naadi.replay import DayPassages, realise  # noqa: E402
 from naadi.router import Journey, Leg, Planner  # noqa: E402
 from naadi.strategy import best_journey  # noqa: E402
 
-RAW = ROOT / "data" / "raw" / "google"
-RES = ROOT / "validation" / "results"
-WORK = ROOT / "data" / "processed" / "speed_tables" / "_work"
+from naadi.paths import RAW, RESULTS, WORK
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 MATCH_M = 300.0
 

@@ -26,11 +26,9 @@ from .linkgrid import LinkGrid
 from .live import LiveEngine
 from .network import Network, haversine
 from .nowcast import NowcastParams
-from .router import IST_S, Planner, _hw
-from .strategy import refine
-
-ROOT = Path(os.environ.get("NAADI_ROOT", Path(__file__).resolve().parents[1]))
-MODEL = ROOT / "data" / "processed" / "model"
+from .paths import DATA, MODEL, RESULTS, ROOT
+from .router import IST_S, Planner, _hw, _interp
+from .strategy import plan_options, refine, route_label
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 BOX = (28.15, 29.40, 76.55, 77.75)  # Delhi NCR bounds accepted for coordinates
 VERSION = "naadi-1.0 (history: Oct 2026, 31 days; model: LightGBM link times + live nowcast)"
@@ -50,7 +48,11 @@ S = State()
 
 
 def load() -> None:
-    net = Network(MODEL / os.environ.get("NAADI_NETWORK", "network_prod"))
+    net_name = os.environ.get("NAADI_NETWORK", "network_prod")
+    mm = MODEL / "network_prod_mm"
+    if net_name == "network_prod" and mm.exists():
+        net_name = "network_prod_mm"
+    net = Network(MODEL / net_name)
     grid = LinkGrid(MODEL / os.environ.get("NAADI_GRID", "grid_oct_all.parquet"), methods=("gbm",))
     geom = pq.read_table(MODEL / "tables" / os.environ.get("NAADI_TABLES", "oct_all") / "geom.parquet").to_pydict()
     gi = grid.index(np.array(geom["route_id"]), np.array(geom["ord"]))
@@ -59,12 +61,13 @@ def load() -> None:
     cell_of_link = np.zeros(len(grid.route), np.int64)
     cell_of_link[gi[gi >= 0]] = cid[gi >= 0]
     p = NowcastParams()
-    ev = ROOT / "validation" / "results" / "eta_oct.json"
+    ev = RESULTS / "eta_oct.json"
     if ev.exists():
         p = NowcastParams(**json.loads(ev.read_text())["nowcast"])
     S.net, S.grid = net, grid
+    S.has_metro = bool(np.any(np.asarray(getattr(net, "route_mode", np.zeros(net.n_routes, np.int8))) == 1))
     S.naadi, S.tt = Planner(net, "naadi"), Planner(net, "timetable")
-    S.live = LiveEngine(net, grid, cell_of_link, Path(os.environ.get("NAADI_SNAPSHOT", ROOT / "data" / "live" / "latest.pb")), p)
+    S.live = LiveEngine(net, grid, cell_of_link, Path(os.environ.get("NAADI_SNAPSHOT", DATA / "live" / "latest.pb")), p)
     cal = MODEL / "calibration.json"
     S.calib_live = (1.0, 1.0)
     if cal.exists():
@@ -72,9 +75,10 @@ def load() -> None:
         S.naadi.calib = (f["naadi"]["wait"], f["naadi"]["ride"])
         if "naadi_live" in f:
             S.calib_live = (f["naadi_live"]["wait"], f["naadi_live"]["ride"])
+    S.live_wait_factor = 1.0
     iv = MODEL / "intervals.json"
     S.intervals = json.loads(iv.read_text()) if iv.exists() else None
-    acc = ROOT / "validation" / "results" / "summary.json"
+    acc = RESULTS / "summary.json"
     S.accuracy = json.loads(acc.read_text()) if acc.exists() else {}
     ac = MODEL / "route_ac.json"
     S.route_ac = json.loads(ac.read_text()) if ac.exists() else {}
@@ -244,15 +248,37 @@ def leg_json(l, live_info):
                 "from_stop": int(n.stop_ids[l.from_stop]) if l.from_stop >= 0 else None,
                 "to_stop": int(n.stop_ids[l.to_stop]) if l.to_stop >= 0 else None,
                 "_ends": (a, b)}
+    if l.kind == "metro":
+        ridx = l.route
+        info = n.metro_meta.get("routes", {}).get(str(ridx), {})
+        board_sid = n.station_id[l.from_stop] if hasattr(n, "station_id") else str(int(n.stop_ids[l.from_stop]) - 90000000)
+        alight_sid = n.station_id[l.to_stop] if hasattr(n, "station_id") else str(int(n.stop_ids[l.to_stop]) - 90000000)
+        headways = info.get("headway", {})
+        h = str(int(((l.t0 + IST_S) % 86400) // 3600))
+        toward = n.towards[ridx] if getattr(n, "towards", None) else info.get("towards", "")
+        return {"type": "metro", "line": n.line_name[ridx], "line_code": n.line_code[ridx],
+                "line_color": n.line_color[ridx], "route_id": str(n.metro_route_id[ridx]), "towards": toward,
+                "also_towards": sorted(set(info.get("also_towards", [])) - {toward}),
+                "board": {"station_id": str(board_sid), "name": n.station_name[l.from_stop], "lat": float(n.lat[l.from_stop]),
+                          "lon": float(n.lon[l.from_stop]), "time": iso(l.t0 + l.wait_s)},
+                "alight": {"station_id": str(alight_sid), "name": n.station_name[l.to_stop], "lat": float(n.lat[l.to_stop]),
+                           "lon": float(n.lon[l.to_stop]), "time": iso(l.t1)},
+                "wait_min": round(2 * l.wait_s / 60, 1), "ride_min": round(l.ride_s / 60, 1),
+                "headway_min": round(float(headways.get(h, 1800.0)) / 60, 1),
+                "stops": int(n.rs_ord[l.alight_rs] - n.rs_ord[l.board_rs]),
+                "distance_km": round(float(n.rs_sd[l.alight_rs] - n.rs_sd[l.board_rs]) / 1000, 1),
+                "schedule_estimated": True, "time_source": "DMRC timetable (GTFS v1)", "fare_inr": None,
+                "geometry": shape_slice(l.route, float(n.rs_sd[l.board_rs]), float(n.rs_sd[l.alight_rs]))}
     r = l.route
     short = n.route_short[r]
+    label = route_label(short)
     dist_km = float(n.rs_sd[l.alight_rs] - n.rs_sd[l.board_rs]) / 1000
     na, ac = fare(dist_km)
-    alts = sorted({n.route_short[a[0]] for a in getattr(l, "alternatives", [])} - {short})
+    alts = sorted({route_label(n.route_short[a[0]]) for a in getattr(l, "alternatives", [])} - {label})
     samples = int(S.grid.n_hist[n.rs_link[l.board_rs:l.alight_rs][n.rs_link[l.board_rs:l.alight_rs] >= 0]].sum()) if l.alight_rs > l.board_rs else 0
-    return {"type": "bus", "route": re.sub(r"(UP|DOWN)\d*$", "", short).strip(), "route_variant": short.strip(),
+    return {"type": "bus", "route": label, "route_variant": short.strip(),
             "route_id": int(n.route_ids[r]), "towards": n.route_desc[r].split(" to ")[-1] if n.route_desc[r] else "",
-            "also": sorted({re.sub(r"(UP|DOWN)\d*$", "", a).strip() for a in alts} - {re.sub(r"(UP|DOWN)\d*$", "", short).strip()}),
+                      "also": alts,
             "board": {"stop_id": int(n.stop_ids[l.from_stop]), "name": n.stop_names[l.from_stop],
                       "lat": float(n.lat[l.from_stop]), "lon": float(n.lon[l.from_stop]), "time": iso(l.t0 + l.wait_s)},
             "alight": {"stop_id": int(n.stop_ids[l.to_stop]), "name": n.stop_names[l.to_stop],
@@ -267,7 +293,7 @@ def leg_json(l, live_info):
             "geometry": shape_slice(r, float(n.rs_sd[l.board_rs]), float(n.rs_sd[l.alight_rs]))}
 
 
-def journey_json(j, label_set, live, t_dep, pl_tt):
+def journey_json(j, label_set, live, t_dep, pl_tt, o_xy, d_xy, multimodal=False):
     n = S.net
     legs, info = [], []
     for l in j.legs:
@@ -277,66 +303,64 @@ def journey_json(j, label_set, live, t_dep, pl_tt):
     for i, lg in enumerate(legs):
         if lg["type"] == "walk":
             a, b = lg.pop("_ends")
-            prev = legs[i - 1]["alight"] if i > 0 and legs[i - 1]["type"] == "bus" else None
-            nxt = legs[i + 1]["board"] if i + 1 < len(legs) and legs[i + 1]["type"] == "bus" else None
-            p0 = (prev["lat"], prev["lon"]) if prev else a or S._o
-            p1 = (nxt["lat"], nxt["lon"]) if nxt else b or S._d
+            prev = legs[i - 1]["alight"] if i > 0 and legs[i - 1]["type"] in ("bus", "metro") else None
+            nxt = legs[i + 1]["board"] if i + 1 < len(legs) and legs[i + 1]["type"] in ("bus", "metro") else None
+            p0 = (prev["lat"], prev["lon"]) if prev else a or o_xy
+            p1 = (nxt["lat"], nxt["lon"]) if nxt else b or d_xy
             lg["geometry"] = [[round(p0[1], 5), round(p0[0], 5)], [round(p1[1], 5), round(p1[0], 5)]]
+            kinds = getattr(n, "stop_kind", np.zeros(n.n_stops, np.int8))
+            from_stop, to_stop = j.legs[i].from_stop, j.legs[i].to_stop
+            from_platform = from_stop >= 0 and int(kinds[from_stop]) == 1
+            to_platform = to_stop >= 0 and int(kinds[to_stop]) == 1
+            if from_platform and to_platform and getattr(n, "station_id", [""] * n.n_stops)[from_stop] == getattr(n, "station_id", [""] * n.n_stops)[to_stop]:
+                lg["interchange"] = True
+                lg["minutes"] = 4.0
+            else:
+                access = (1.5 if from_platform else 0.0) + (3.0 if to_platform else 0.0)
+                if from_platform and to_platform:
+                    access = 4.5
+                if access:
+                    lg["station_access_min"] = access
+
     tot = j.total_s
-    rng = interval(tot, live)
+    rng = None if multimodal else interval(tot, live)
+    h_dep = int(((t_dep + IST_S) % 86400) // 3600)
+    off = (t_dep + IST_S) % 3600
+    day0 = math.floor((t_dep + IST_S) / 86400) * 86400 - IST_S
     chakra = []
     for h in range(24):
-        day0 = math.floor((t_dep + IST_S) / 86400) * 86400 - IST_S
-        th = day0 + h * 3600 + 1800
-        r2 = refine(S.naadi, j, th)
+        r2 = refine(S.naadi, j, day0 + h * 3600 + off)
         chakra.append(None if r2 is None else round(r2.total_s / 60, 1))
+    chakra[h_dep] = round(j.total_s / 60, 1)
     vals = [(h, v) for h, v in enumerate(chakra) if v is not None]
     quiet = min(vals, key=lambda x: x[1]) if vals else None
     tt = refine(pl_tt, j, t_dep)
+    transit_legs = [l for l in legs if l["type"] in ("bus", "metro")]
     bus_legs = [l for l in legs if l["type"] == "bus"]
     fare_na = sum(l["fare_inr"]["non_ac"] for l in bus_legs)
     fare_ac = sum(l["fare_inr"]["ac"] for l in bus_legs)
+    metro_fare = None
+    fare = {"non_ac": fare_na, "ac": fare_ac, "pink_saheli": 0}
+    if multimodal:
+        from .multimodal import journey_metro_fare
+        metro_fare = journey_metro_fare(S.net, j, t_dep)
+        if metro_fare is None:
+            fare = {"non_ac": None, "ac": None, "pink_saheli": None, "metro": None}
+        else:
+            fare = {"non_ac": fare_na + metro_fare, "ac": fare_ac + metro_fare,
+                    "pink_saheli": metro_fare, "metro": metro_fare}
+    modes = sorted({l["type"] for l in transit_legs})
     return {"labels": sorted(label_set), "total_min": round(tot / 60, 1),
             "range_min": [round(rng[0] / 60), round(rng[1] / 60)] if rng else None,
             "depart": iso(t_dep), "arrive": iso(j.arrive),
             "arrive_range": [iso(t_dep + rng[0]), iso(t_dep + rng[1])] if rng else None,
-            "transfers": max(0, j.n_bus - 1), "walk_m": round(j.walk_m()),
-            "wait_min": round(sum(l["wait_min"] for l in bus_legs), 1), "ride_min": round(sum(l["ride_min"] for l in bus_legs), 1),
-            "fare_inr": {"non_ac": fare_na, "ac": fare_ac, "pink_saheli": 0},
+            "transfers": max(0, len(transit_legs) - 1), "walk_m": round(j.walk_m()),
+            "wait_min": round(sum(l.get("wait_min", 0) for l in transit_legs), 1), "ride_min": round(sum(l.get("ride_min", 0) for l in transit_legs), 1),
+            "fare_inr": fare,
             "quiet_hour": {"hour": quiet[0], "total_min": quiet[1]} if quiet else None,
             "samay_chakra": chakra, "timetable_min": round(tt.total_s / 60, 1) if tt else None,
-            "live": live, "legs": legs}
-
-
-def apply_live_first_wait(j, t_dep, cum_live):
-    """Replace the first bus leg's expected wait with the next live bus among its routes."""
-    t = t_dep
-    for l in j.legs:
-        if l.kind == "walk":
-            t += l.t1 - l.t0
-            continue
-        rs = [a[1] for a in getattr(l, "alternatives", [(l.route, l.board_rs, l.alight_rs, 1)])]
-        h0, h1, w = _hw(t)
-        cum_h = (1 - w) * cum_live[h0] + w * cum_live[h1]
-        nb = [x for x in S.live.next_buses(rs, t, cum_h) if x[1] >= t]
-        info = {"live": True, "next": [round((x[1] - t) / 60, 1) for x in nb[:3]]}
-        if nb:
-            new_wait = nb[0][1] - t
-            shift = new_wait - l.wait_s
-            l.wait_s = new_wait
-            info["wait_source"] = "live bus"
-            l.t1 += shift
-            j.arrive += shift
-            # later legs shift too
-            idx = j.legs.index(l)
-            for l2 in j.legs[idx + 1:]:
-                l2.t0 += shift; l2.t1 += shift
-        l.live_info = info
-        for l2 in j.legs[j.legs.index(l) + 1:]:
-            if l2.kind == "bus":
-                l2.live_info = {"live": True}
-        break
-    return j
+            "live": live, "legs": legs,
+            **({"modes": ["metro" if x == "metro" else "bus" for x in modes], "schedule_estimated": True} if multimodal else {})}
 
 
 # ---------------------------------------------------------------- endpoints
@@ -354,54 +378,62 @@ def stops_search(q: str = Query(..., min_length=2, max_length=80), limit: int = 
 def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<id>' or a stop name"),
              to: str = Query(..., description="'lat,lon', 'stop:<id>' or a stop name"),
              depart: str | None = Query(None, description="'now' (default) or ISO time in IST, e.g. 2026-11-17T08:30"),
-             options: int = Query(3, ge=1, le=5)):
+             options: int = Query(3, ge=1, le=5),
+             modes: str = Query("bus,metro")):
+    mode_set = tuple(sorted({x.strip() for x in modes.split(",") if x.strip()}))
+    if set(mode_set) not in ({"bus"}, {"bus", "metro"}):
+        raise HTTPException(400, "modes must be 'bus' or 'bus,metro'.")
     o, d = resolve(frm), resolve(to)
     t_dep, near_now = parse_depart(depart)
-    S._o, S._d = (o[0], o[1]), (d[0], d[1])
+    o_xy, d_xy = (o[0], o[1]), (d[0], d[1])
     mult = S.live.nowcast_mult(t_dep) if near_now else None
     live = mult is not None
-    js = S.naadi.plan((o[0], o[1]), (d[0], d[1]), t_dep, n_options=6, live_mult=mult)
-    refined = []
-    if live:  # ride times with the nowcast applied, live calibration factors
-        we_q, cum_q, _ = S.naadi.tables(t_dep, mult)
-        cum_saved = S.naadi.cum
-        tmp = cum_saved.copy()
-        tmp[we_q] = cum_q
-        S.naadi.cum = tmp
-    try:
-        for j in js:
-            r = refine(S.naadi, j, t_dep, calib=S.calib_live if live else None)
-            if r is not None:
-                refined.append(r)
-    finally:
-        if live:
-            S.naadi.cum = cum_saved
-    if live and refined:
-        _, cum_live, _ = S.naadi.tables(t_dep, mult)
-        refined = [apply_live_first_wait(j, t_dep, cum_live) for j in refined]
-    seen, uniq = set(), []
-    for j in sorted(refined, key=lambda j: j.total_s + 300 * (j.n_bus - 1)):
-        sig = tuple(sorted({S.net.route_short[l.route] for l in j.legs if l.kind == "bus"}))
-        if sig not in seen:
-            seen.add(sig)
-            uniq.append(j)
-    uniq = uniq[:options]
-    if not uniq:
-        return {"query": {"from": o[2], "to": d[2], "depart": iso(t_dep)}, "options": [],
-                "message": "No bus journey found within 1 km of both places at this time.", "attribution": ATTRIBUTION}
+    first_wait = None
+    if live:
+        cum_live = S.naadi.tables(t_dep, mult)[1]
+        def first_wait(rs, t):
+            h0, h1, w = _hw(t)
+            cum_h = (1 - w) * cum_live[h0] + w * cum_live[h1]
+            return [x[1] for x in S.live.next_buses(rs, t, cum_h)]
+    uniq = plan_options(S.naadi, o_xy, d_xy, t_dep, n=options, live_mult=mult,
+                        calib=S.calib_live if live else S.naadi.calib,
+                        first_wait=first_wait if live else None,
+                        live_wait_factor=S.live_wait_factor if live else 1.0, modes=("bus",))
+    multimodal = []
+    if "metro" in mode_set and S.has_metro:
+        multimodal = [j for j in plan_options(S.naadi, o_xy, d_xy, t_dep, n=2, live_mult=mult,
+                                               calib=S.calib_live if live else S.naadi.calib,
+                                               first_wait=first_wait if live else None,
+                                               live_wait_factor=S.live_wait_factor if live else 1.0,
+                                               modes=("bus", "metro"), require_metro=True)
+                      if any(l.kind == "metro" for l in j.legs)]
+    if not uniq and not multimodal:
+        return {"query": {"from": o[2], "to": d[2], "depart": iso(t_dep), "modes": list(mode_set)}, "options": [],
+                "message": "No bus journey found within 1 km of both places at this time.", "attribution": ATTRIBUTION,
+                "multimodal_options": [], "multimodal_note": NOTE if "metro" in mode_set and getattr(S, "has_metro", False) else None}
     labels = defaultdict(set)
-    labels[min(range(len(uniq)), key=lambda i: uniq[i].total_s)].add("fastest")
-    labels[min(range(len(uniq)), key=lambda i: (uniq[i].n_bus, uniq[i].total_s))].add("fewest_changes")
-    labels[min(range(len(uniq)), key=lambda i: (uniq[i].walk_m(), uniq[i].total_s))].add("least_walking")
-    out = [journey_json(j, labels[i], live, t_dep, S.tt) for i, j in enumerate(uniq)]
+    if uniq:
+        labels[min(range(len(uniq)), key=lambda i: uniq[i].total_s)].add("fastest")
+        labels[min(range(len(uniq)), key=lambda i: (uniq[i].n_bus, uniq[i].total_s))].add("fewest_changes")
+        labels[min(range(len(uniq)), key=lambda i: (uniq[i].walk_m(), uniq[i].total_s))].add("least_walking")
+    out = [journey_json(j, labels[i], live, t_dep, S.tt, o_xy, d_xy) for i, j in enumerate(uniq)]
+    mm_labels = defaultdict(set)
+    if multimodal:
+        mm_labels[min(range(len(multimodal)), key=lambda i: multimodal[i].total_s)].add("fastest")
+        mm_labels[min(range(len(multimodal)), key=lambda i: (multimodal[i].n_transit, multimodal[i].total_s))].add("fewest_changes")
+        mm_labels[min(range(len(multimodal)), key=lambda i: (multimodal[i].walk_m(), multimodal[i].total_s))].add("least_walking")
+    mm_out = [journey_json(j, mm_labels[i], live, t_dep, S.tt, o_xy, d_xy, multimodal=True)
+              for i, j in enumerate(multimodal)]
     we = int(((math.floor((t_dep + IST_S) / 86400) + 3) % 7) >= 5)
     return {"query": {"from": {"name": o[2], "lat": o[0], "lon": o[1]}, "to": {"name": d[2], "lat": d[0], "lon": d[1]},
                       "depart": iso(t_dep), "day_type": "weekend" if we else "weekday", "live": live,
-                      "crow_km": round(float(haversine(o[0], o[1], d[0], d[1])) / 1000, 1)},
+                      "crow_km": round(float(haversine(o[0], o[1], d[0], d[1])) / 1000, 1), "modes": list(mode_set)},
             "options": out, "model": VERSION, "attribution": ATTRIBUTION,
             "notes": "Times are expected door-to-door minutes. Waits use observed bus frequencies and bunching; rides use "
                      "the model's time for that hour. Fares are indicative (Delhi Tourism city-bus table); women ride free "
-                     "with a Pink Saheli card."}
+                     "with a Pink Saheli card.",
+            "multimodal_options": mm_out,
+            "multimodal_note": "Metro times come from the DMRC timetable (GTFS v1). Its calendar ended on 31 Dec 2025 and it has no Sunday trips, so the weekday timetable is used on every day. They are timetable estimates, not checked against live trains, and are not part of Naadi's accuracy results." if "metro" in mode_set and S.has_metro else None}
 
 
 @app.get("/stops/{stop_id}/departures")
@@ -423,7 +455,7 @@ def departures(stop_id: int):
     rows = []
     for r_s in rs:
         r = int(n.rs_route[r_s])
-        ew = (1 - w) * wait[h0, r_s] + w * wait[h1, r_s]
+        ew = _interp(wait[h0, r_s], wait[h1, r_s], w)
         rows.append({"route": re.sub(r"(UP|DOWN)\d*$", "", n.route_short[r]).strip(), "route_variant": n.route_short[r].strip(),
                      "towards": n.route_desc[r].split(" to ")[-1] if n.route_desc[r] else "",
                      "live_eta_min": by.get(r_s, [])[:3],

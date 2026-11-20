@@ -14,14 +14,16 @@ import argparse
 import datetime as dt
 import json
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
 import pyarrow.parquet as pq
 
 ROOT = Path(__file__).resolve().parents[1]
-RES = ROOT / "validation" / "results"
-MODEL = ROOT / "data" / "processed" / "model"
+sys.path.insert(0, str(ROOT))
+from naadi.paths import MODEL, RESULTS
+RES = RESULTS
 BANDS = [30, 60, 90, 1e9]
 NAMES = {"timetable": "Official timetable", "city": "City speed curve", "ha": "Historical average", "eb": "Empirical-Bayes history",
          "gbm": "Naadi history only", "persist": "Bus's own recent speed", "live_only": "Live only (30 min)",

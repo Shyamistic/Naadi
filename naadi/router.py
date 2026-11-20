@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from numba import njit
 
-from .network import Network, walk_s
+from .network import Network, haversine, walk_s
 
 IST_S = 19800
 K_MAX = 3
@@ -30,6 +30,11 @@ def _hw(t):
     w = x - h0
     h0 = int(h0) % 24
     return h0, (h0 + 1) % 24, w
+
+
+@njit(cache=True)
+def _interp(a, b, w):
+    return a if w <= 0.0 else (1.0 - w) * a + w * b
 
 
 @njit(cache=True)
@@ -97,7 +102,7 @@ def _raptor(t_dep, cum, wait, r_ptr, rs_stop, sr_ptr, sr_rs, rs_route, fp_ptr, f
                 tb = tau[k - 1, s]
                 if tb < INF:
                     h0, h1, w = _hw(tb)
-                    wt = (1 - w) * wait[h0, rs] + w * wait[h1, rs]
+                    wt = _interp(wait[h0, rs], wait[h1, rs], w)
                     if wt < 1e8:
                         dep = tb + wt
                         if b_rs < 0 or dep < arr:
@@ -135,7 +140,7 @@ def _cum_live(cum, rs_link, r_ptr, mult):
 
 @dataclass
 class Leg:
-    kind: str                 # "walk" or "bus"
+    kind: str                 # "walk", "bus" or "metro"
     t0: float                 # leg start (unix s)
     t1: float                 # leg end
     from_stop: int = -1       # stop index (network) or -1 for the origin point
@@ -146,7 +151,8 @@ class Leg:
     wait_s: float = 0.0
     ride_s: float = 0.0
     walk_m: float = 0.0
-
+    alternatives: list = field(default_factory=list)
+    live_info: dict = field(default_factory=dict)
 
 @dataclass
 class Journey:
@@ -159,11 +165,15 @@ class Journey:
         return self.arrive - self.depart
 
     @property
+    def n_transit(self):
+        return sum(1 for l in self.legs if l.kind in ("bus", "metro"))
+
+    @property
     def n_bus(self):
         return sum(1 for l in self.legs if l.kind == "bus")
 
     def signature(self):
-        return tuple((l.route, l.board_rs, l.alight_rs) for l in self.legs if l.kind == "bus")
+        return tuple((l.route, l.board_rs, l.alight_rs) for l in self.legs if l.kind in ("bus", "metro"))
 
     def walk_m(self):
         return sum(l.walk_m for l in self.legs if l.kind == "walk")
@@ -175,6 +185,8 @@ class Planner:
         self.variant = variant
         self.cum = getattr(net, f"cum_{variant}")      # (2, 24, n_rs)
         self.wait = getattr(net, f"wait_{variant}")
+        self.route_kind = np.asarray(getattr(net, "route_kind", ["bus"] * net.n_routes))
+        self.metro_routes = np.flatnonzero(np.asarray(getattr(net, "route_mode", self.route_kind == "metro")) == 1).tolist()
 
     def tables(self, t: float, live_mult=None):
         we = int(((math.floor((t + IST_S) / 86400) + 3) % 7) >= 5)
@@ -183,22 +195,27 @@ class Planner:
             cum = _cum_live(cum, self.net.rs_link, self.net.r_ptr, live_mult)
         return we, cum, self.wait[we]
 
-    def _access(self, lat, lon, radius=ACCESS_M):
+    def _access(self, lat, lon, radius=ACCESS_M, egress=False):
         st, d = self.net.nearby(lat, lon, radius)
-        return st, walk_s(d), d
+        extra = getattr(self.net, "stop_exit_s" if egress else "stop_entry_s", np.zeros(self.net.n_stops, np.float32))[st]
+        return st, walk_s(d) + extra, d
 
-    def run(self, o, d, t_dep, banned=(), live_mult=None, cum=None):
+    def run(self, o, d, t_dep, banned=(), live_mult=None, cum=None, modes=("bus",)):
         n = self.net
         we, cum_t, wait = self.tables(t_dep, live_mult)
         if cum is not None:
             cum_t = cum
         acc_st, acc_s, acc_d = self._access(*o)
-        eg_st, eg_s, eg_d = self._access(*d)
+        eg_st, eg_s, eg_d = self._access(d[0], d[1], egress=True)
         if len(acc_st) == 0 or len(eg_st) == 0:
             return [], (acc_st, eg_st)
         ok = np.ones(n.n_routes, np.bool_)
-        for r in banned:
-            ok[r] = False
+        for r in self.metro_routes:
+            if "metro" not in modes:
+                ok[r] = False
+        for r in range(n.n_routes):
+            if self.route_kind[r] == "bus" and "bus" not in modes:
+                ok[r] = False
         tau, kind, pa, pb, ptb, pw = _raptor(float(t_dep), cum_t, wait, n.r_ptr, n.rs_stop, n.sr_ptr, n.sr_rs,
                                              n.rs_route, n.fp_ptr, n.fp_to, n.fp_s, ok, acc_st,
                                              acc_s.astype(np.float64), n.n_stops, K_MAX)
@@ -212,7 +229,7 @@ class Planner:
             if bs < 0:
                 continue
             j = self._reconstruct(k, bs, tau, kind, pa, pb, ptb, pw, t_dep, acc_st, acc_s, acc_d, cum_t)
-            if j is None or j.n_bus == 0:
+            if j is None or j.n_transit == 0:
                 continue
             w, dm = egress[bs]
             j.legs.append(Leg("walk", tau[k, bs], tau[k, bs] + w, from_stop=bs, walk_m=dm))
@@ -235,9 +252,8 @@ class Planner:
                 break
             if kd == 3:
                 s0 = pa[k, s]
-                dm = float(walk_s(1.0) and 0.0)
-                legs.append(Leg("walk", tau[k, s0], tau[k, s], from_stop=s0, to_stop=s,
-                                walk_m=float((tau[k, s] - tau[k, s0]) * 1.25 / 1.35)))
+                dm = float(haversine(self.net.lat[s0], self.net.lon[s0], self.net.lat[s], self.net.lon[s]))
+                legs.append(Leg("walk", tau[k, s0], tau[k, s], from_stop=s0, to_stop=s, walk_m=dm))
                 s = s0
                 continue
             if kd == 2:
@@ -245,7 +261,7 @@ class Planner:
                 r = int(self.net.rs_route[b])
                 sb = int(self.net.rs_stop[b])
                 tb, wt = ptb[k, s], pw[k, s]
-                legs.append(Leg("bus", tb, tau[k, s], from_stop=sb, to_stop=s, route=r, board_rs=b, alight_rs=a,
+                legs.append(Leg("metro" if self.route_kind[r] == "metro" else "bus", tb, tau[k, s], from_stop=sb, to_stop=s, route=r, board_rs=b, alight_rs=a,
                                 wait_s=wt, ride_s=tau[k, s] - tb - wt))
                 s = sb
                 k -= 1
@@ -254,11 +270,11 @@ class Planner:
         legs.reverse()
         return Journey(legs=legs)
 
-    def plan(self, o, d, t_dep, n_options=4, live_mult=None):
+    def plan(self, o, d, t_dep, n_options=4, live_mult=None, modes=("bus",)):
         """Up to n_options distinct journeys, best first by generalised time."""
         found, seen, banned = [], set(), []
         for _ in range(4):
-            js, _ = self.run(o, d, t_dep, banned=banned, live_mult=live_mult)
+            js, _ = self.run(o, d, t_dep, banned=banned, live_mult=live_mult, modes=modes)
             for j in js:
                 sig = j.signature()
                 if sig and sig not in seen:
@@ -266,11 +282,11 @@ class Planner:
                     found.append(j)
             if not js:
                 break
-            first = min(js, key=lambda j: j.total_s + TRANSFER_PENALTY_S * (j.n_bus - 1))
-            banned += [l.route for l in first.legs if l.kind == "bus"]
+            first = min(js, key=lambda j: j.total_s + TRANSFER_PENALTY_S * (j.n_transit - 1))
+            banned += [l.route for l in first.legs if l.kind in ("bus", "metro")]
         if not found:
             return []
-        found.sort(key=lambda j: j.total_s + TRANSFER_PENALTY_S * (j.n_bus - 1))
+        found.sort(key=lambda j: j.total_s + TRANSFER_PENALTY_S * (j.n_transit - 1))
         best = found[0].total_s
         keep = [j for j in found if j.total_s <= 1.6 * best + 900]
         return keep[:n_options]
@@ -284,7 +300,7 @@ class Planner:
                 t += l.t1 - l.t0
                 continue
             h0, h1, w = _hw(t)
-            wt = (1 - w) * wait[h0, l.board_rs] + w * wait[h1, l.board_rs]
+            wt = _interp(wait[h0, l.board_rs], wait[h1, l.board_rs], w)
             if not np.isfinite(wt) or wt > 1e8:
                 return None
             t += wt

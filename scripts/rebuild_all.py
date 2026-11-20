@@ -42,6 +42,7 @@ def steps() -> list[tuple[str, list[str], Path]]:
           ("grid prod", [PY, "-u", "scripts/link_model.py", "grid", "--tables", "oct_all"], ROOT),
           ("network eval", [PY, "-u", "scripts/build_network.py", "--grid", "grid_oct01_24", "--service", "service_oct01_24", "--name", "eval_oct"], ROOT),
           ("network prod", [PY, "-u", "scripts/build_network.py", "--grid", "grid_oct_all", "--service", "service_oct_all", "--name", "prod"], ROOT),
+          ("network prod + metro", [PY, "-u", "scripts/build_multimodal.py", "--bus", "network_prod", "--name", "prod_mm"], ROOT),
           ("eval eta", [PY, "-u", "scripts/eval_eta.py"], ROOT)]
     return s
 

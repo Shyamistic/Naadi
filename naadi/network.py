@@ -18,11 +18,7 @@ import duckdb
 import numpy as np
 
 from .linkgrid import LinkGrid
-
-ROOT = Path(__file__).resolve().parents[1]
-WORK = ROOT / "data" / "processed" / "speed_tables" / "_work"
-GTFS = ROOT / "data" / "processed" / "gtfs_fixed" / "bus_v1-2"
-MODEL = ROOT / "data" / "processed" / "model"
+from .paths import GTFS, MODEL, ROOT, WORK
 WALK_MS = 1.25        # walking speed (m/s)
 DETOUR = 1.35         # street network detour over straight line
 FOOT_RADIUS_M = 450   # transfer walks between nearby stops
@@ -178,6 +174,15 @@ class Network:
         meta = json.loads((path / "network_meta.json").read_text(encoding="utf-8"))
         self.route_short, self.route_desc = meta["route_short"], meta["route_desc"]
         self.route_agency, self.stop_names = meta["route_agency"], meta["stop_names"]
+        self.route_kind = np.asarray(getattr(self, "route_kind", meta.get("route_kind", ["bus"] * len(self.route_ids))))
+        self.metro_meta = meta.get("metro", {})
+        self.line_name = meta.get("line_name", [""] * len(self.route_ids))
+        self.line_code = meta.get("line_code", [""] * len(self.route_ids))
+        self.line_color = meta.get("line_color", [""] * len(self.route_ids))
+        self.metro_route_id = meta.get("metro_route_id", [None] * len(self.route_ids))
+        self.towards = meta.get("towards", [""] * len(self.route_ids))
+        self.station_id = meta.get("station_id", [""] * len(self.stop_ids))
+        self.station_name = meta.get("station_name", [""] * len(self.stop_ids))
         self.meta = meta
         self.n_stops, self.n_routes = len(self.stop_ids), len(self.route_ids)
         self.stop_index = {int(s): i for i, s in enumerate(self.stop_ids)}

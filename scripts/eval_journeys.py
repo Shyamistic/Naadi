@@ -37,7 +37,7 @@ from naadi.strategy import refine  # noqa: E402
 
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 SLOTS = ["07:30", "08:30", "10:00", "13:00", "16:00", "18:00", "20:00", "22:30"]
-WORK = ROOT / "data" / "processed" / "speed_tables" / "_work"
+from naadi.paths import MODEL, RESULTS, WORK
 
 
 def weekend(ts):
@@ -142,7 +142,7 @@ def main() -> None:
                                    routes="+".join(net.route_short[l.route] for l in j.legs if l.kind == "bus"))
                     rows.append(row)
         print(f"{day} done, {len(rows):,} rows, {time.time() - t_start:.0f}s", flush=True)
-    out = ROOT / "validation" / "results"
+    out = RESULTS
     out.mkdir(parents=True, exist_ok=True)
     cols = {k: [r[k] for r in rows] for k in rows[0]}
     pq.write_table(pa.table(cols), out / f"{a.out}.parquet")
