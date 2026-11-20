@@ -1,7 +1,7 @@
-"""Observed October 2026 fares with an official-slab fallback.
+"""Observed October 2026 app fares with official cash-slab values.
 
 The empirical table contains only aggregate route/OD/AC cells. It does not
-contain vehicle identifiers or raw ticket rows.
+contain raw ticket rows.
 """
 from __future__ import annotations
 
@@ -20,11 +20,12 @@ DEFAULT_TABLE = ROOT / "data" / "processed" / "model" / "fares_v1" / "fare_table
 
 @dataclass(frozen=True)
 class FareQuote:
-    fare_inr: float
+    cash_fare_inr: float
+    app_fare_inr: float
     source: str
 
     def as_dict(self) -> dict[str, float | str]:
-        return {"fare_inr": self.fare_inr, "source": self.source}
+        return {"cash_fare_inr": self.cash_fare_inr, "app_fare_inr": self.app_fare_inr, "source": self.source}
 
 
 class FareModel:
@@ -58,9 +59,10 @@ class FareModel:
         ac = self._is_ac(is_ac)
         key = (int(route_id), int(boarding_stop_id), int(alighting_stop_id), ac)
         observed = self._table.get(key)
+        cash = self._slab(shape_distance_m, ac)
         if observed is not None:
-            return FareQuote(observed, "empirical")
-        return FareQuote(round(0.9 * self._slab(shape_distance_m, ac), 2), "slab_app_discount")
+            return FareQuote(cash, round(observed, 2), "empirical")
+        return FareQuote(cash, round(0.9 * cash, 2), "slab_app_discount")
 
 
 _MODEL: FareModel | None = None
@@ -69,11 +71,11 @@ _MODEL_PATH: Path | None = None
 
 def fare_for_leg(route_id: int, boarding_stop_id: int, alighting_stop_id: int,
                  is_ac: ACValue, shape_distance_m: float) -> FareQuote:
-    """Return the charged fare for one bus leg and its provenance.
+    """Return cash official-slab and One Delhi app fares with provenance.
 
     ``is_ac`` accepts a boolean AC flag or an AC share in [0, 1]. A share of
-    at least 0.5 selects the AC table. Missing empirical cells use the official
-    distance slabs with the observed 10% One Delhi app discount.
+    at least 0.5 selects the AC table. Missing empirical cells use the
+    official cash distance slab and its observed 10% One Delhi app discount.
     """
     global _MODEL, _MODEL_PATH
     path = Path(os.environ.get("NAADI_FARES", DEFAULT_TABLE))

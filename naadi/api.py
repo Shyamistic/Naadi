@@ -54,10 +54,18 @@ class State:
 S = State()
 
 
+def _json(path: Path, default):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        print("artefact unreadable", path.name, type(exc).__name__)
+        return default
+
+
 def load() -> None:
     net_name = os.environ.get("NAADI_NETWORK", "network_prod")
     mm = MODEL / "network_prod_mm"
-    if net_name == "network_prod" and mm.exists():
+    if net_name == "network_prod" and mm.joinpath("network.npz").exists() and mm.joinpath("network_meta.json").exists():
         net_name = "network_prod_mm"
     net = Network(MODEL / net_name)
     grid = LinkGrid(MODEL / os.environ.get("NAADI_GRID", "grid_oct_all.parquet"), methods=("gbm",))
@@ -69,8 +77,12 @@ def load() -> None:
     cell_of_link[gi[gi >= 0]] = cid[gi >= 0]
     p = NowcastParams()
     ev = RESULTS / "eta_oct.json"
-    if ev.exists():
-        p = NowcastParams(**json.loads(ev.read_text())["nowcast"])
+    ev_data = _json(ev, {}) if ev.exists() else {}
+    try:
+        p = NowcastParams(**(ev_data.get("nowcast", {}) if isinstance(ev_data, dict) else {}))
+    except (KeyError, TypeError) as exc:
+        print("artefact unreadable", ev.name, type(exc).__name__)
+        p = NowcastParams()
     S.net, S.grid = net, grid
     S.has_multimodal = bool(np.any(np.isin(np.asarray(getattr(net, "route_kind", ["bus"] * net.n_routes)), ["metro", "rail", "shared_auto"])))
     S.naadi, S.tt = Planner(net, "naadi"), Planner(net, "timetable")
@@ -80,7 +92,8 @@ def load() -> None:
         cal = MODEL / "calibration.json"
     S.calib_live = (1.0, 1.0)
     if cal.exists():
-        f = json.loads(cal.read_text())["factors"]
+        data = _json(cal, {})
+        f = data.get("factors", {}) if isinstance(data, dict) else {}
         if "naadi" in f:
             S.naadi.calib = (f["naadi"]["wait"], f["naadi"]["ride"])
         if "naadi_live" in f:
@@ -93,11 +106,11 @@ def load() -> None:
     iv = MODEL / os.environ.get("NAADI_INTERVALS", "intervals_v2.json")
     if not iv.exists():
         iv = MODEL / "intervals.json"
-    S.intervals = json.loads(iv.read_text()) if iv.exists() else None
+    S.intervals = _json(iv, None) if iv.exists() else None
     acc = RESULTS / "summary.json"
-    S.accuracy = json.loads(acc.read_text()) if acc.exists() else {}
+    S.accuracy = _json(acc, {}) if acc.exists() else {}
     ac = MODEL / "route_ac.json"
-    S.route_ac = json.loads(ac.read_text()) if ac.exists() else {}
+    S.route_ac = _json(ac, {}) if ac.exists() else {}
     # stop search index: one entry per distinct name, centroid of its stops
     groups = defaultdict(list)
     for i, n in enumerate(net.stop_names):
@@ -335,7 +348,8 @@ def leg_json(l, live_info):
                        "lat": float(n.lat[l.to_stop]), "lon": float(n.lon[l.to_stop]), "time": iso(l.t1)},
             "wait_min": round(l.wait_s / 60, 1), "ride_min": round(l.ride_s / 60, 1),
             "stops": int(n.rs_ord[l.alight_rs] - n.rs_ord[l.board_rs]), "distance_km": round(dist_km, 1),
-            "fare_inr": {"non_ac": non_ac_quote.fare_inr, "ac": ac_quote.fare_inr, "pink_saheli": 0},
+            "fare_inr": {"non_ac": non_ac_quote.cash_fare_inr, "ac": ac_quote.cash_fare_inr, "pink_saheli": 0},
+            "app_fare_inr": {"non_ac": non_ac_quote.app_fare_inr, "ac": ac_quote.app_fare_inr, "pink_saheli": 0},
             "fare_source": {"non_ac": "observed" if non_ac_quote.source == "empirical" else "estimated",
                             "ac": "observed" if ac_quote.source == "empirical" else "estimated"},
             "ac_share": S.route_ac.get(str(int(n.route_ids[r]))),
@@ -392,9 +406,12 @@ def journey_json(j, label_set, live, t_dep, pl_tt, o_xy, d_xy, multimodal=False)
     bus_legs = [l for l in legs if l["type"] == "bus"]
     fare_na = sum(l["fare_inr"]["non_ac"] for l in bus_legs)
     fare_ac = sum(l["fare_inr"]["ac"] for l in bus_legs)
+    app_fare_na = sum(l["app_fare_inr"]["non_ac"] for l in bus_legs)
+    app_fare_ac = sum(l["app_fare_inr"]["ac"] for l in bus_legs)
     shared_fare = sum((l.get("fare_inr") or {}).get("amount", 0) for l in legs if l["type"] == "shared_auto")
     rail_present = any(l["type"] == "rail" for l in legs)
     fare = {"non_ac": fare_na, "ac": fare_ac, "pink_saheli": 0}
+    app_fare = {"non_ac": app_fare_na, "ac": app_fare_ac, "pink_saheli": 0}
     if multimodal:
         from .multimodal import journey_metro_fare
         metro_fare = journey_metro_fare(S.net, j, t_dep)
@@ -404,6 +421,11 @@ def journey_json(j, label_set, live, t_dep, pl_tt, o_xy, d_xy, multimodal=False)
                 "pink_saheli": None if unknown else (metro_fare or 0) + shared_fare,
                 "metro": metro_fare, "rail": None if rail_present else 0,
                 "shared_auto": shared_fare}
+        app_fare = {"non_ac": None if unknown else app_fare_na + (metro_fare or 0) + shared_fare,
+                    "ac": None if unknown else app_fare_ac + (metro_fare or 0) + shared_fare,
+                    "pink_saheli": None if unknown else (metro_fare or 0) + shared_fare,
+                    "metro": metro_fare, "rail": None if rail_present else 0,
+                    "shared_auto": shared_fare}
     mode_order = {"bus": 0, "metro": 1, "rail": 2, "shared_auto": 3}
     modes = sorted({l["type"] for l in transit_legs}, key=lambda x: mode_order.get(x, 99))
     return {"labels": sorted(label_set), "total_min": round(tot / 60, 1),
@@ -413,6 +435,7 @@ def journey_json(j, label_set, live, t_dep, pl_tt, o_xy, d_xy, multimodal=False)
             "transfers": max(0, len(transit_legs) - 1), "walk_m": round(j.walk_m()),
             "wait_min": round(sum(l.get("wait_min", 0) for l in transit_legs), 1), "ride_min": round(sum(l.get("ride_min", 0) for l in transit_legs), 1),
             "fare_inr": fare,
+            "app_fare_inr": app_fare,
             "quiet_hour": {"hour": quiet[0], "total_min": quiet[1]} if quiet else None,
             "samay_chakra": chakra, "timetable_min": round(tt.total_s / 60, 1) if tt else None,
             "live": live, "legs": legs,
@@ -528,8 +551,8 @@ def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<
                       "crow_km": round(float(haversine(o[0], o[1], d[0], d[1])) / 1000, 1), "modes": list(mode_set)},
             "options": out, "model": VERSION, "attribution": ATTRIBUTION,
             "notes": "Times are expected door-to-door minutes. Waits use observed bus frequencies and bunching; rides use "
-                     "the model's time for that hour. Fares are indicative (Delhi Tourism city-bus table); women ride free "
-                     "with a Pink Saheli card.",
+                     "the model's time for that hour. Bus fares show the official cash slab; app fares are shown separately "
+                     "where available. Women ride free with a Pink Saheli card.",
             "multimodal_options": mm_out,
             "multimodal_note": EXTENSION_NOTE if requested_extension and S.has_multimodal else None}
 
