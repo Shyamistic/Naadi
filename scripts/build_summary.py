@@ -210,9 +210,18 @@ def main() -> None:
     if google.exists():
         out["google"] = json.loads(google.read_text())
     (RESULTS / "summary.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
-    report_lines = [f"# Door-to-door journeys, v2 ({', '.join(test_days)})", "", "Held-out protocol: factors fitted on 25-26 Oct; grouped ranges calibrated on 27-28 Oct; test metrics on 29-31 Oct.", "", "| Planner | Raw MAE (min) | Calibrated MAE (min) | Test n |", "|---|---:|---:|---:|"]
+    report_lines = [f"# Door-to-door journeys, v2 ({', '.join(test_days)})", "", "Held-out protocol: factors fitted on 25-26 Oct; grouped ranges calibrated on 27-28 Oct; test metrics on 29-31 Oct.", "", "| Planner | Old MAE (min) | V2 raw MAE (min) | V2 calibrated MAE (min) | Test n |", "|---|---:|---:|---:|---:|"]
+    old_for_table = legacy or {}
+    journey_json_path = RESULTS / f"{a.journeys}.json"
+    if journey_json_path.exists():
+        journey_payload = json.loads(journey_json_path.read_text())
+        if legacy is not None:
+            journey_payload["legacy"] = legacy
+        journey_json_path.write_text(json.dumps(journey_payload, indent=1), encoding="utf-8")
     for p in planners:
-        report_lines.append(f"| {PLANNER_NAMES.get(p, p)} | {report[p]['raw'].get('mae_min', 0):.1f} | {report[p]['calibrated'].get('mae_min', 0):.1f} | {report[p]['calibrated'].get('n', 0)} |")
+        old_mae = old_for_table.get(p, {}).get("mae_min")
+        old_text = f"{old_mae:.1f}" if isinstance(old_mae, (int, float)) else "—"
+        report_lines.append(f"| {PLANNER_NAMES.get(p, p)} | {old_text} | {report[p]['raw'].get('mae_min', 0):.1f} | {report[p]['calibrated'].get('mae_min', 0):.1f} | {report[p]['calibrated'].get('n', 0)} |")
     report_lines += ["", "## Calibration factors", "", "| Planner | Wait history | Live wait | Ride |", "|---|---:|---:|---:|"]
     for p, f in calibration.items():
         report_lines.append(f"| {PLANNER_NAMES.get(p, p)} | {f['wait']:.2f} | {f.get('live_wait', 1.0):.2f} | {f['ride']:.2f} |")
