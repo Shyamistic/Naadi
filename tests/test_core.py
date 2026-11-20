@@ -209,3 +209,35 @@ def test_api_brief_example_multimodal():
         assert any(leg["type"] == "metro" for leg in option["legs"])
         assert option["schedule_estimated"] and option["range_min"] is None
     assert bus_only.json()["multimodal_options"] == [] and invalid.status_code == 400
+
+
+def test_next_bus_interpolates_missing_boarding_crossing():
+    from naadi.replay import DayPassages
+    day = DayPassages.from_arrays([1, 1, 1, 1], [10, 10, 10, 10], [1, 2, 4, 5], [100, 200, 400, 500])
+    assert day.next_bus(10, 3, 5, 0.0) == pytest.approx((300.0, 500.0))
+    day = DayPassages.from_arrays([1, 1, 1, 1, 1], [10] * 5, [1, 2, 3, 4, 5], [100, 200, 310, 400, 500])
+    assert day.next_bus(10, 3, 5, 0.0) == pytest.approx((310.0, 500.0))
+
+
+def test_fit_finds_wait_factor_below_0_8():
+    from build_summary import fit
+    rng = np.random.default_rng(0)
+    n = 2000
+    c = {"walk": rng.uniform(0, 300, n), "wait_hist": rng.uniform(0, 900, n), "wait_live": np.zeros(n),
+         "ride": rng.uniform(300, 3600, n)}
+    c["act"] = c["walk"] + 0.5 * c["wait_hist"] + 1.1 * c["ride"]
+    a, b = fit(c, np.ones(n, dtype=bool))
+    assert a == pytest.approx(0.5, abs=0.05) and b == pytest.approx(1.1, abs=0.02)
+
+
+def test_interval_uses_wait_group_then_band():
+    import naadi.api as api
+    old = getattr(api.S, "intervals", None)
+    api.S.intervals = {"history": {"bands": [{"max_min": 9999, "q_lo": -0.1, "q_hi": 0.2}],
+                                    "wait_edges_min": [5, 10, 20],
+                                    "groups": [{"max_min": 9999, "wait_class": 0, "q_lo": -0.05, "q_hi": 0.1}]}}
+    try:
+        assert api.interval(3600, False, 0) == pytest.approx((3600 * np.exp(-0.05), 3600 * np.exp(0.1)))
+        assert api.interval(3600, False, 900) == pytest.approx((3600 * np.exp(-0.1), 3600 * np.exp(0.2)))
+    finally:
+        api.S.intervals = old

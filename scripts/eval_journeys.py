@@ -1,16 +1,4 @@
-"""Door-to-door journey validation by replay on recorded days.
-
-For every OD pair x departure slot x test day, each planner proposes its best journey and its predicted
-door-to-door time; the replay (naadi/replay.py) gives the actual time a rider following that journey
-would have had, using the buses that really ran that day.
-Planners (one router, one network built from history before the test days):
-  naadi       model ride times, measured waits, common lines
-  naadi_live  the same plus the live nowcast from traversals completed before the departure time
-  timetable   GTFS times and scheduled regular headways
-Usage:
-  python scripts/eval_journeys.py --network eval_oct --days 2026_10_26 ... --out journeys_oct [--live]
-Writes validation/results/<out>.parquet (one row per case and planner, no vehicle ids) and <out>.json.
-"""
+"""Evaluate the exact bus-only options served by Naadi on archived October days."""
 from __future__ import annotations
 
 import argparse
@@ -21,7 +9,6 @@ import sys
 import time
 from pathlib import Path
 
-import duckdb
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -29,15 +16,16 @@ import pyarrow.parquet as pq
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from naadi.linkgrid import LinkGrid  # noqa: E402
-from naadi.network import MODEL, Network  # noqa: E402
-from naadi.nowcast import NowcastParams, ResidualIndex, correction  # noqa: E402
-from naadi.replay import DayPassages, realise  # noqa: E402
-from naadi.router import Planner  # noqa: E402
-from naadi.strategy import refine  # noqa: E402
+from naadi.live import upcoming  # noqa: E402
+from naadi.network import Network  # noqa: E402
+from naadi.nowcast import NowcastParams  # noqa: E402
+from naadi.paths import MODEL, RESULTS, ROWS  # noqa: E402
+from naadi.replay import DayPassages, LiveDay, positions_at, realise_legs  # noqa: E402
+from naadi.router import Planner, _hw  # noqa: E402
+from naadi.strategy import plan_options  # noqa: E402
 
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 SLOTS = ["07:30", "08:30", "10:00", "13:00", "16:00", "18:00", "20:00", "22:30"]
-from naadi.paths import MODEL, RESULTS, WORK
 
 
 def weekend(ts):
@@ -45,60 +33,43 @@ def weekend(ts):
     return (((d + 3) % 7) >= 5).astype(np.int64)
 
 
-class LiveDay:
-    """Nowcast multipliers for routing at time t, from the day's traversals completed before t."""
-
-    def __init__(self, grid: LinkGrid, tables: str, day: str, p: NowcastParams):
-        self.grid, self.p = grid, p
-        geom = pq.read_table(MODEL / "tables" / tables / "geom.parquet").to_pydict()
-        gi = grid.index(np.array(geom["route_id"]), np.array(geom["ord"]))
-        _, cid = np.unique((np.array(geom["gy"], np.int64) * 100000 + np.array(geom["gx"])) * 8 + np.array(geom["hd"]), return_inverse=True)
-        self.cell = np.zeros(len(grid.route), np.int64)
-        self.cell[gi[gi >= 0]] = cid[gi >= 0]
-        L = duckdb.sql(f"SELECT route_id, ord, t, tt_s FROM read_parquet('{(WORK / 'links' / f'day={day}.parquet').as_posix()}')").fetchnumpy()
-        li = grid.index(L["route_id"], L["ord"]); m = li >= 0
-        li, t, tt = li[m], L["t"][m], L["tt_s"][m]
-        res = np.log(tt) - grid.log_tt("gbm", li, weekend(t), t)
-        tref = float(t.min()) - 7200
-        self.links = ResidualIndex(li, t + tt, res, tref)
-        self.cells = ResidualIndex(self.cell[li], t + tt, res, tref)
-        self.all = np.arange(len(grid.route))
-
-    def mult(self, t: float) -> np.ndarray:
-        out = np.ones((24, len(self.all)), np.float32)
-        h_now = ((t + 19800) % 86400) / 3600
-        t0 = np.full(len(self.all), t)
-        for h in range(24):
-            ahead = ((h + 0.5 - h_now) % 24) * 3600
-            if ahead > 6 * 3600:
-                continue
-            out[h] = np.exp(correction(self.p, self.links, self.cells, self.all, self.cell, t0, t0 + ahead))
-        return out
+def _predicted_components(j):
+    bus = [l for l in j.legs if l.kind == "bus"]
+    wait_hist = sum(l.wait_s for l in bus if l.live_info.get("wait_source") != "live bus")
+    wait_live = sum(l.wait_s for l in bus if l.live_info.get("wait_source") == "live bus")
+    walk_s = sum(l.t1 - l.t0 for l in j.legs if l.kind == "walk")
+    ride_s = sum(l.ride_s for l in bus)
+    first = bus[0] if bus else None
+    return walk_s, wait_hist, wait_live, ride_s, (first.wait_s if first else 0.0), (first.live_info.get("wait_source", "history") if first else "history")
 
 
-def best(pl: Planner, o, d, t, mult=None):
-    js, _ = pl.run(o, d, t, live_mult=mult)
-    bj = None
-    for j in js:
-        r = refine_live(pl, j, t, mult)
-        if r is not None and (bj is None or r.total_s + 300 * (r.n_bus - 1) < bj.total_s + 300 * (bj.n_bus - 1)):
-            bj = r
-    return bj
+def _actual_components(legs):
+    if not legs:
+        return None, None, None
+    waits = [board - at_stop for at_stop, board, _ in legs]
+    rides = [alight - board for _, board, alight in legs]
+    return float(sum(waits)), float(sum(rides)), float(waits[0])
 
 
-def refine_live(pl, j, t, mult):
-    if mult is None:
-        return refine(pl, j, t)
-    cum0 = pl.cum
-    we = int(weekend(t))
-    _, cum_live, _ = pl.tables(t, mult)
-    tmp = cum0.copy()
-    tmp[we] = cum_live
-    pl.cum = tmp
-    try:
-        return refine(pl, j, t)
-    finally:
-        pl.cum = cum0
+def _summary(rows):
+    out = {}
+    for name in sorted({r["planner"] for r in rows}):
+        ok = [r for r in rows if r["planner"] == name and r["status"] == "ok"]
+        e = np.array([r["pred_s"] - r["actual_s"] for r in ok], float)
+        act = np.array([r["actual_s"] for r in ok], float)
+        status = {}
+        for r in rows:
+            if r["planner"] == name:
+                status[r["status"]] = status.get(r["status"], 0) + 1
+        out[name] = {"n_ok": len(ok), "status": status,
+                     "mae_min": float(np.mean(np.abs(e)) / 60) if len(e) else None,
+                     "median_abs_min": float(np.median(np.abs(e)) / 60) if len(e) else None,
+                     "mape_pct": float(100 * np.mean(np.abs(e) / act)) if len(e) else None,
+                     "bias_min": float(np.mean(e) / 60) if len(e) else None,
+                     "within_5min_pct": float(100 * np.mean(np.abs(e) <= 300)) if len(e) else None,
+                     "within_10min_pct": float(100 * np.mean(np.abs(e) <= 600)) if len(e) else None,
+                     "actual_median_min": float(np.median(act) / 60) if len(act) else None}
+    return out
 
 
 def main() -> None:
@@ -106,63 +77,76 @@ def main() -> None:
     ap.add_argument("--network", required=True)
     ap.add_argument("--days", nargs="+", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--live", action="store_true", help="also evaluate naadi_live (needs links of the test day)")
+    ap.add_argument("--live", action="store_true")
     ap.add_argument("--grid", default="grid_oct01_24")
     ap.add_argument("--tables", default="oct01_24")
+    ap.add_argument("--limit-od", type=int, default=None)
     a = ap.parse_args()
+
     net = Network(MODEL / f"network_{a.network}")
     planners = {"naadi": Planner(net, "naadi"), "timetable": Planner(net, "timetable")}
     grid = LinkGrid(MODEL / f"{a.grid}.parquet", methods=("gbm",)) if a.live else None
-    p = NowcastParams(**json.loads((ROOT / "validation" / "results" / "eta_oct.json").read_text())["nowcast"]) if a.live else None
+    eta = RESULTS / "eta_oct.json"
+    params = NowcastParams(**json.loads(eta.read_text())["nowcast"]) if a.live and eta.exists() else None
     od = list(csv.DictReader((ROOT / "validation" / "od_set.csv").open(encoding="utf-8")))
+    if a.limit_od is not None:
+        od = od[:a.limit_od]
     rows = []
-    t_start = time.time()
+    started = time.time()
     for day in a.days:
-        dp = DayPassages(day)
-        live = LiveDay(grid, a.tables, day, p) if a.live else None
-        y, m, d = map(int, day.split("_"))
+        passages = DayPassages(day)
+        live_day = LiveDay(grid, a.tables, day, params) if a.live else None
+        y, m, d = map(int, day.replace("_", "-").split("-"))
         for slot in SLOTS:
             hh, mm = map(int, slot.split(":"))
-            t = dt.datetime(y, m, d, hh, mm, tzinfo=IST).timestamp()
-            mult = live.mult(t) if live else None
+            t_dep = dt.datetime(y, m, d, hh, mm, tzinfo=IST).timestamp()
+            mult = live_day.mult(t_dep) if live_day else None
+            buses = positions_at(net, day, t_dep) if a.live else []
+            first_wait = None
+            if buses:
+                cum_live = planners["naadi"].tables(t_dep, mult)[1]
+
+                def first_wait(rs, t_at, *, _cum=cum_live, _buses=buses):
+                    h0, h1, w = _hw(t_at)
+                    cum_h = (1 - w) * _cum[h0] + w * _cum[h1]
+                    return [x[1] for x in upcoming(net, _buses, t_dep, rs, t_at, cum_h)]
             for r in od:
-                o, dd = (float(r["o_lat"]), float(r["o_lon"])), (float(r["d_lat"]), float(r["d_lon"]))
-                runs = [("naadi", planners["naadi"], None), ("timetable", planners["timetable"], None)]
-                if mult is not None:
-                    runs.append(("naadi_live", planners["naadi"], mult))
-                for name, pl, mu in runs:
-                    j = best(pl, o, dd, t, mu)
+                o = (float(r["o_lat"]), float(r["o_lon"]))
+                dest = (float(r["d_lat"]), float(r["d_lon"]))
+                runs = [("naadi", planners["naadi"], None, None), ("timetable", planners["timetable"], None, None)]
+                if a.live:
+                    runs += [("naadi_nowcast", planners["naadi"], mult, None), ("naadi_live", planners["naadi"], mult, first_wait)]
+                for name, pl, mu, fw in runs:
+                    js = plan_options(pl, o, dest, t_dep, n=1, live_mult=mu, calib=(1.0, 1.0), first_wait=fw,
+                                      live_wait_factor=1.0, modes=("bus",))
                     row = {"day": day, "slot": slot, "od_id": r["od_id"], "kind": r["kind"], "planner": name,
                            "pred_s": None, "actual_s": None, "status": "no journey", "n_bus": 0, "walk_m": 0.0,
-                           "wait_pred_s": None, "routes": ""}
-                    if j is not None:
-                        act, why = realise(net, j, dp)
-                        row.update(pred_s=float(j.total_s), actual_s=act, status=why, n_bus=j.n_bus, walk_m=float(j.walk_m()),
-                                   wait_pred_s=float(sum(l.wait_s for l in j.legs if l.kind == "bus")),
+                           "walk_s": None, "wait_hist_s": None, "wait_live_s": None, "ride_s": None,
+                           "wait1_pred_s": None, "wait1_source": "history", "act_wait_s": None, "act_ride_s": None,
+                           "act_wait1_s": None, "routes": ""}
+                    if js:
+                        j = js[0]
+                        actual, status, actual_legs = realise_legs(net, j, passages)
+                        walk_s, wait_hist, wait_live, ride_s, wait1, wait1_source = _predicted_components(j)
+                        act_wait, act_ride, act_wait1 = _actual_components(actual_legs) if status == "ok" else (None, None, None)
+                        row.update(pred_s=float(j.total_s), actual_s=actual, status=status, n_bus=j.n_bus,
+                                   walk_m=float(j.walk_m()), walk_s=float(walk_s), wait_hist_s=float(wait_hist),
+                                   wait_live_s=float(wait_live), ride_s=float(ride_s), wait1_pred_s=float(wait1),
+                                   wait1_source=wait1_source, act_wait_s=act_wait, act_ride_s=act_ride,
+                                   act_wait1_s=act_wait1,
                                    routes="+".join(net.route_short[l.route] for l in j.legs if l.kind == "bus"))
                     rows.append(row)
-        print(f"{day} done, {len(rows):,} rows, {time.time() - t_start:.0f}s", flush=True)
-    out = RESULTS
-    out.mkdir(parents=True, exist_ok=True)
-    cols = {k: [r[k] for r in rows] for k in rows[0]}
-    pq.write_table(pa.table(cols), out / f"{a.out}.parquet")
-    summ = {}
-    for name in sorted({r["planner"] for r in rows}):
-        ok = [r for r in rows if r["planner"] == name and r["status"] == "ok"]
-        e = np.array([r["pred_s"] - r["actual_s"] for r in ok])
-        act = np.array([r["actual_s"] for r in ok])
-        st = {}
-        for r in rows:
-            if r["planner"] == name:
-                st[r["status"]] = st.get(r["status"], 0) + 1
-        summ[name] = {"n_ok": len(ok), "status": st, "mae_min": float(np.mean(np.abs(e)) / 60),
-                      "median_abs_min": float(np.median(np.abs(e)) / 60),
-                      "mape_pct": float(100 * np.mean(np.abs(e) / act)), "bias_min": float(np.mean(e) / 60),
-                      "within_5min_pct": float(100 * np.mean(np.abs(e) <= 300)),
-                      "within_10min_pct": float(100 * np.mean(np.abs(e) <= 600)),
-                      "actual_median_min": float(np.median(act) / 60)}
-    (out / f"{a.out}.json").write_text(json.dumps(summ, indent=1))
-    print(json.dumps({k: {kk: v[kk] for kk in ("n_ok", "mae_min", "bias_min", "within_10min_pct")} for k, v in summ.items()}, indent=1))
+        print(f"{day} done, {len(rows):,} rows, {time.time() - started:.0f}s", flush=True)
+
+    ROWS.mkdir(parents=True, exist_ok=True)
+    table = pa.table({k: [r[k] for r in rows] for k in rows[0]})
+    tmp = ROWS / f"{a.out}.parquet.tmp"
+    pq.write_table(table, tmp)
+    tmp.replace(ROWS / f"{a.out}.parquet")
+    summary = _summary(rows)
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    (RESULTS / f"{a.out}.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
+    print(json.dumps(summary, indent=1))
 
 
 if __name__ == "__main__":
