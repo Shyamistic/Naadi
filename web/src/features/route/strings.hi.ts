@@ -1,1 +1,1 @@
-export const routeHi = { "route.title": "रूट", "route.other": "दूसरी दिशा" } as const;
+export const routeHi = { "route.title": "रूट", "route.other": "दूसरी दिशा", "route.weekday": "कार्यदिवस", "route.weekend": "सप्ताहांत", "route.busesHour": "बस प्रति घंटा", "route.endToEnd": "कुल समय", "route.live": "लाइव बसें" } as const;

@@ -1,1 +1,1 @@
-export const liveEn = { "live.title": "Live buses", "live.privacy": "Bus ids are anonymised." } as const;
+export const liveEn = { "live.title": "Live buses", "live.privacy": "Bus ids are anonymised. Licence plates are never shown.", "live.filter": "Route filter", "live.clear": "Clear route filter", "live.underTwo": "Position under 2 min old", "live.older": "Older position", "live.group": "Group of buses" } as const;
