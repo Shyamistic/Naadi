@@ -12,7 +12,7 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:4173', ...chrome, trace: 'retain-on-failure' },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, ...chrome } },
-    { name: 'phone', use: { ...devices['iPhone 13'], viewport: { width: 390, height: 844 }, ...chrome } },
+    { name: 'phone', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, ...chrome } },
     { name: 'no-webgl', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, ...chrome, launchOptions: { args: [...chrome.launchOptions.args, '--disable-webgl'] } }, testMatch: /fallback\.spec\.ts/ },
   ],
 });

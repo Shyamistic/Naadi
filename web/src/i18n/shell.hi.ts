@@ -1,5 +1,7 @@
 export const shellHi = {
   "shell.liveBuses": "लाइव बसें",
+  "shell.expandPanel": "यात्रा पैनल खोलें",
+  "shell.collapsePanel": "यात्रा पैनल बंद करें",
   "shell.toggleTheme": "थीम बदलें",
   "shell.help": "सहायता",
   "shell.settings": "सेटिंग्स",
