@@ -194,6 +194,45 @@ class Network:
         self._buckets: dict[int, np.ndarray] = {}
         for c in np.unique(self._cell):
             self._buckets[int(c)] = np.flatnonzero(self._cell == c)
+        self._walk_target_index = self._apply_walking_lookup()
+
+    def _apply_walking_lookup(self):
+        """Replace static footpath times with OSM times when the artefact is available."""
+        try:
+            from .walk import load as load_walk
+            lookup = load_walk()
+        except (FileNotFoundError, OSError, ValueError):
+            return {}
+        coord_targets = {(round(float(la), 6), round(float(lo), 6)): str(tid)
+                         for tid, la, lo in zip(lookup.target_ids, lookup.target_lat, lookup.target_lon)}
+        keys = {}
+        for i, sid in enumerate(self.stop_ids):
+            numeric = str(int(sid))
+            if numeric in lookup.target_index:
+                keys[i] = numeric
+                continue
+            station = self.station_id[i] if i < len(self.station_id) else ""
+            station_key = f"dmrc:{station}" if station else ""
+            if station_key in lookup.target_index:
+                keys[i] = station_key
+                continue
+            coord_key = coord_targets.get((round(float(self.lat[i]), 6), round(float(self.lon[i]), 6)))
+            if coord_key is not None:
+                keys[i] = coord_key
+        for src in range(self.n_stops):
+            for pos in range(int(self.fp_ptr[src]), int(self.fp_ptr[src + 1])):
+                dst = int(self.fp_to[pos])
+                a, b = keys.get(src), keys.get(dst)
+                if a is None or b is None:
+                    continue
+                try:
+                    self.fp_s[pos] = lookup.walk_time(a, b)
+                except KeyError:
+                    pass
+        return keys
+
+    def walk_target_index(self):
+        return self._walk_target_index
 
     def nearby(self, lat: float, lon: float, radius_m: float):
         cy, cx = math.floor(lat / 0.01), math.floor(lon / 0.01)

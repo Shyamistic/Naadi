@@ -24,8 +24,11 @@ CADDY = "https://github.com/caddyserver/caddy/releases/download/v2.10.2/caddy_2.
 MODEL_FILES = ["data/processed/model/network_prod/network.npz", "data/processed/model/network_prod/network_meta.json",
                "data/processed/model/network_prod_mm/network.npz", "data/processed/model/network_prod_mm/network_meta.json",
                "data/processed/model/grid_oct_all.parquet", "data/processed/model/tables/oct_all/geom.parquet",
-               "data/processed/model/tables/oct_all/cell_h.parquet", "data/processed/model/intervals.json",
-               "data/processed/model/route_ac.json", "data/processed/model/calibration.json", "validation/results/eta_oct.json", "validation/results/summary.json"]
+               "data/processed/model/tables/oct_all/cell_h.parquet", "data/processed/model/intervals.json", "data/processed/model/intervals_v2.json",
+               "data/processed/model/route_ac.json", "data/processed/model/calibration.json", "data/processed/model/calibration_v2.json",
+               "data/processed/model/walk_v1/meta.json", "data/processed/model/walk_v1/targets.npz", "data/processed/model/walk_v1/pairs.npz",
+               "data/processed/model/walk_v1/access.npz", "data/processed/model/fares_v1/fare_table.parquet",
+               "validation/results/eta_oct.json", "validation/results/summary.json"]
 TRAIL_ROOT = ROOT / "data" / "processed" / "model" / "trails_v1"
 
 
@@ -122,6 +125,10 @@ WantedBy=multi-user.target
 """
     cmds = [
         "set -e",
+        "if [ ! -e /swapfile ]; then fallocate -l 2G /swapfile; chmod 600 /swapfile; mkswap /swapfile; fi",
+        "swapon --show=NAME --noheadings | grep -qx /swapfile || swapon /swapfile",
+        "grep -qE '^/swapfile[[:space:]]' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab",
+        "sysctl -w vm.swappiness=10",
         f"aws s3 sync s3://{bucket}/code/ /opt/naadi/ --region {REGION} --only-show-errors",
         f"aws s3 sync s3://{bucket}/web/ /opt/naadi/web/ --region {REGION} --only-show-errors --delete",
         f"aws s3 sync s3://{bucket}/artefacts/ /opt/naadi/ --region {REGION} --only-show-errors",

@@ -28,6 +28,7 @@ from .network import Network, haversine
 from .nowcast import NowcastParams
 from .paths import DATA, MODEL, RESULTS, ROOT
 from .router import IST_S, Planner, _hw, _interp
+from .fares import fare_for_leg
 from .strategy import plan_options, refine, route_label
 from .trails import router as trails_router
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
@@ -35,6 +36,9 @@ BOX = (28.15, 29.40, 76.55, 77.75)  # Delhi NCR bounds accepted for coordinates
 VERSION = "naadi-1.0 (history: Oct 2026, 31 days; model: LightGBM link times + live nowcast)"
 EXTENSION_NOTE = ("Metro and Namo Bharat times come from GTFS timetables; shared-auto times come from frequency survey data. "
                   "All multimodal extension times are estimates, not live observations, and are excluded from Naadi's scored bus accuracy results.")
+NOTE = ("Metro times come from the DMRC timetable (GTFS v1). Its calendar ended on 31 Dec 2025 and it has no Sunday trips, "
+        "so the weekday timetable is used on every day. They are timetable estimates, not checked against live trains, "
+        "and are not part of Naadi's accuracy results.")
 ATTRIBUTION = ("Bus data: Delhi Transport Stack (delhi.transportstack.in) and Delhi Open Transit Data "
                "(Department of Transport, GNCTD; IIIT-Delhi). Map data: OpenStreetMap contributors.")
 ALIASES = {"kashmiri gate": "kashmere gate", "kashmiri": "kashmere", "cp": "connaught place", "connaught": "shivaji stadium",
@@ -71,15 +75,24 @@ def load() -> None:
     S.has_multimodal = bool(np.any(np.isin(np.asarray(getattr(net, "route_kind", ["bus"] * net.n_routes)), ["metro", "rail", "shared_auto"])))
     S.naadi, S.tt = Planner(net, "naadi"), Planner(net, "timetable")
     S.live = LiveEngine(net, grid, cell_of_link, Path(os.environ.get("NAADI_SNAPSHOT", DATA / "live" / "latest.pb")), p)
-    cal = MODEL / "calibration.json"
+    cal = MODEL / os.environ.get("NAADI_CALIBRATION", "calibration_v2.json")
+    if not cal.exists():
+        cal = MODEL / "calibration.json"
     S.calib_live = (1.0, 1.0)
     if cal.exists():
         f = json.loads(cal.read_text())["factors"]
-        S.naadi.calib = (f["naadi"]["wait"], f["naadi"]["ride"])
+        if "naadi" in f:
+            S.naadi.calib = (f["naadi"]["wait"], f["naadi"]["ride"])
         if "naadi_live" in f:
             S.calib_live = (f["naadi_live"]["wait"], f["naadi_live"]["ride"])
-    S.live_wait_factor = 1.0
-    iv = MODEL / "intervals.json"
+            S.live_wait_factor = f["naadi_live"].get("live_wait", 1.0)
+        else:
+            S.live_wait_factor = 1.0
+    else:
+        S.live_wait_factor = 1.0
+    iv = MODEL / os.environ.get("NAADI_INTERVALS", "intervals_v2.json")
+    if not iv.exists():
+        iv = MODEL / "intervals.json"
     S.intervals = json.loads(iv.read_text()) if iv.exists() else None
     acc = RESULTS / "summary.json"
     S.accuracy = json.loads(acc.read_text()) if acc.exists() else {}
@@ -233,13 +246,23 @@ def shape_slice(r: int, d0: float, d1: float, step: int = 1):
     return [[round(float(x), 5), round(float(y), 5)] for x, y in zip(lon[::step], lat[::step])]
 
 
-def interval(total_s: float, live: bool):
+def interval(total_s: float, live: bool, wait_hist_s: float = 0.0):
     iv = S.intervals
     if not iv:
         return None
     key = "live" if live and "live" in iv else "history"
-    band = next((b for b in iv[key]["bands"] if total_s / 60 <= b["max_min"]), iv[key]["bands"][-1])
-    return total_s * math.exp(band["q_lo"]), total_s * math.exp(band["q_hi"])
+    spec = iv.get(key)
+    if not spec:
+        return None
+    band = next((b for b in spec["bands"] if total_s / 60 <= b["max_min"]), spec["bands"][-1])
+    q_lo, q_hi = band.get("q_lo", 0.0), band.get("q_hi", 0.0)
+    groups = spec.get("groups", [])
+    if groups:
+        wait_class = int(np.digitize(wait_hist_s / 60, spec.get("wait_edges_min", [])))
+        group = next((g for g in groups if g.get("max_min") == band.get("max_min") and g.get("wait_class") == wait_class), None)
+        if group is not None:
+            q_lo, q_hi = group.get("q_lo", q_lo), group.get("q_hi", q_hi)
+    return total_s * math.exp(q_lo), total_s * math.exp(q_hi)
 
 
 def leg_json(l, live_info):
@@ -296,7 +319,11 @@ def leg_json(l, live_info):
     short = n.route_short[r]
     label = route_label(short)
     dist_km = float(n.rs_sd[l.alight_rs] - n.rs_sd[l.board_rs]) / 1000
-    na, ac = fare(dist_km)
+    board_stop_id = int(n.stop_ids[n.rs_stop[l.board_rs]])
+    alight_stop_id = int(n.stop_ids[n.rs_stop[l.alight_rs]])
+    route_id = int(n.route_ids[r])
+    non_ac_quote = fare_for_leg(route_id, board_stop_id, alight_stop_id, False, dist_km * 1000.0)
+    ac_quote = fare_for_leg(route_id, board_stop_id, alight_stop_id, True, dist_km * 1000.0)
     alts = sorted({route_label(n.route_short[a[0]]) for a in getattr(l, "alternatives", [])} - {label})
     samples = int(S.grid.n_hist[n.rs_link[l.board_rs:l.alight_rs][n.rs_link[l.board_rs:l.alight_rs] >= 0]].sum()) if l.alight_rs > l.board_rs else 0
     return {"type": "bus", "route": label, "route_variant": short.strip(),
@@ -308,7 +335,9 @@ def leg_json(l, live_info):
                        "lat": float(n.lat[l.to_stop]), "lon": float(n.lon[l.to_stop]), "time": iso(l.t1)},
             "wait_min": round(l.wait_s / 60, 1), "ride_min": round(l.ride_s / 60, 1),
             "stops": int(n.rs_ord[l.alight_rs] - n.rs_ord[l.board_rs]), "distance_km": round(dist_km, 1),
-            "fare_inr": {"non_ac": na, "ac": ac, "pink_saheli": 0},
+            "fare_inr": {"non_ac": non_ac_quote.fare_inr, "ac": ac_quote.fare_inr, "pink_saheli": 0},
+            "fare_source": {"non_ac": "observed" if non_ac_quote.source == "empirical" else "estimated",
+                            "ac": "observed" if ac_quote.source == "empirical" else "estimated"},
             "ac_share": S.route_ac.get(str(int(n.route_ids[r]))),
             "wait_source": live_info.get("wait_source", "history"), "next_buses_min": live_info.get("next", []),
             "ride_source": "live+history" if live_info.get("live") else "history",
@@ -346,7 +375,8 @@ def journey_json(j, label_set, live, t_dep, pl_tt, o_xy, d_xy, multimodal=False)
                     lg["station_access_min"] = access
 
     tot = j.total_s
-    rng = None if multimodal else interval(tot, live)
+    wait_hist_s = sum(l.wait_s for l in j.legs if l.kind == "bus" and l.live_info.get("wait_source") != "live bus")
+    rng = None if multimodal else interval(tot, live, wait_hist_s)
     h_dep = int(((t_dep + IST_S) % 86400) // 3600)
     off = (t_dep + IST_S) % 3600
     day0 = math.floor((t_dep + IST_S) / 86400) * 86400 - IST_S
@@ -389,6 +419,39 @@ def journey_json(j, label_set, live, t_dep, pl_tt, o_xy, d_xy, multimodal=False)
             **({"modes": modes, "schedule_estimated": True} if multimodal else {})}
 
 
+def _arrive_by(frm: str, to: str, arrive: str, options: int, modes: str):
+    target, _ = parse_depart(arrive)
+    candidates, multimodal = [], []
+    for i in range(37):
+        departure = target - (36 - i) * 300
+        body = journeys(frm, to, depart=iso(departure), arrive=None, options=options, modes=modes)
+        for option in body.get("options", []):
+            if dt.datetime.fromisoformat(option["arrive"]).timestamp() <= target + 1:
+                candidates.append(option)
+        for option in body.get("multimodal_options", []):
+            if dt.datetime.fromisoformat(option["arrive"]).timestamp() <= target + 1:
+                multimodal.append(option)
+    def signature(option):
+        return tuple((leg.get("type"), leg.get("route") or leg.get("line"), leg.get("board", {}).get("stop_id") or leg.get("board", {}).get("station_id"))
+                       for leg in option.get("legs", []) if leg.get("type") != "walk")
+    def ranked(items):
+        unique = {}
+        for item in items:
+            unique.setdefault(signature(item), item)
+        return sorted(unique.values(), key=lambda x: (-dt.datetime.fromisoformat(x["depart"]).timestamp(), x["total_min"]))[:options]
+    selected = ranked(candidates)
+    selected_mm = ranked(multimodal)
+    if selected:
+        result = journeys(frm, to, depart=selected[0]["depart"], arrive=None, options=options, modes=modes)
+        result["options"] = selected
+        result["multimodal_options"] = selected_mm
+    else:
+        result = {"query": {"arrive_by": iso(target)}, "options": [], "multimodal_options": selected_mm,
+                  "message": "No journey reaches the requested arrival time."}
+    result.setdefault("query", {})["arrive_by"] = iso(target)
+    return result
+
+
 # ---------------------------------------------------------------- endpoints
 @app.get("/health")
 def health():
@@ -404,8 +467,13 @@ def stops_search(q: str = Query(..., min_length=2, max_length=80), limit: int = 
 def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<id>' or a stop name"),
              to: str = Query(..., description="'lat,lon', 'stop:<id>' or a stop name"),
              depart: str | None = Query(None, description="'now' (default) or ISO time in IST, e.g. 2026-11-17T08:30"),
+             arrive: str | None = Query(None, description="ISO arrival deadline with timezone offset"),
              options: int = Query(3, ge=1, le=5),
              modes: str = Query("bus,metro,rail,shared_auto")):
+    if depart is not None and arrive is not None:
+        raise HTTPException(422, "Send either depart or arrive, not both.")
+    if arrive is not None:
+        return _arrive_by(frm, to, arrive, options, modes)
     valid_modes = {"bus", "metro", "rail", "shared_auto"}
     requested = {x.strip() for x in modes.split(",") if x.strip()}
     if not requested or not requested.issubset(valid_modes):
@@ -525,5 +593,7 @@ def about():
             "licence_note": "Raw data is not redistributed. Derived travel times only.",
             "source": "Transport Stack Hackathon 2026, Problem 1."}
 
+from .ts_adapter import router as ts_adapter_router
 from .webapi import router as _webapi_router  # noqa: E402  web app endpoints (additive)
+app.include_router(ts_adapter_router)
 app.include_router(_webapi_router)
