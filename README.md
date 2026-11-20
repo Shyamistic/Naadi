@@ -60,7 +60,7 @@ Requirements: Python 3.11+, Node 20+, about 40 GB of free disk for the October a
 4. **API:** `uvicorn naadi.api:app --port 8000`. Live data appears when `scripts/record_feed.py` is running; it publishes `data/live/latest.pb`.
 5. **Web:** `cd web && npm install && npm run dev`, then open http://localhost:5173 (`/api` is proxied to port 8000).
 6. **Tests:** `python -m pytest -q tests`.
-7. **Deploy:** `python infra/deploy_api.py` (AWS profile `naadi`). For Vercel, see `web/vercel.json`, which proxies `/api` to the AWS API.
+7. **Deploy:** `python infra/deploy_api.py` (AWS profile `naadi`).
 
 ## Data, licence and credits
 

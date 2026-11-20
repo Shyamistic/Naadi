@@ -26,6 +26,7 @@ MODEL_FILES = ["data/processed/model/network_prod/network.npz", "data/processed/
                "data/processed/model/grid_oct_all.parquet", "data/processed/model/tables/oct_all/geom.parquet",
                "data/processed/model/tables/oct_all/cell_h.parquet", "data/processed/model/intervals.json",
                "data/processed/model/route_ac.json", "data/processed/model/calibration.json", "validation/results/eta_oct.json", "validation/results/summary.json"]
+TRAIL_ROOT = ROOT / "data" / "processed" / "model" / "trails_v1"
 
 
 def ssm_run(s, cmds, timeout=900):
@@ -76,17 +77,24 @@ def main() -> None:
             ct = {".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml"}.get(f.suffix, "application/octet-stream")
             s3.upload_file(str(f), bucket, f"web/{f.relative_to(ROOT / 'web' / 'dist').as_posix()}", ExtraArgs={"ContentType": ct})
     if not a.code_only:
-        for rel in MODEL_FILES:
-            p = ROOT / rel
+        artefacts = [ROOT / rel for rel in MODEL_FILES]
+        if TRAIL_ROOT.exists():
+            artefacts.extend(p for p in TRAIL_ROOT.rglob("*") if p.is_file())
+        for p in artefacts:
             if p.exists():
+                rel = p.relative_to(ROOT).as_posix()
                 s3.upload_file(str(p), bucket, f"artefacts/{rel}")
             else:
-                print("missing (skipped):", rel)
+                print("missing (skipped):", p.relative_to(ROOT).as_posix())
     caddyfile = f"""{host} {{
     encode zstd gzip
-    handle_path /api/* {{
+    @api path /api /api/*
+    handle @api {{
+        uri strip_prefix /api
         reverse_proxy 127.0.0.1:8000
     }}
+    @serviceworker path /sw.js
+    header @serviceworker Cache-Control "no-cache, no-store, must-revalidate"
     handle {{
         root * /opt/naadi/web
         try_files {{path}} /index.html
