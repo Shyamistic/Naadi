@@ -28,6 +28,7 @@ from .network import Network, haversine
 from .nowcast import NowcastParams
 from .paths import DATA, MODEL, RESULTS, ROOT
 from .router import IST_S, Planner, _hw, _interp
+from .fares import fare_for_leg
 from .strategy import plan_options, refine, route_label
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 BOX = (28.15, 29.40, 76.55, 77.75)  # Delhi NCR bounds accepted for coordinates
@@ -316,7 +317,11 @@ def leg_json(l, live_info):
     short = n.route_short[r]
     label = route_label(short)
     dist_km = float(n.rs_sd[l.alight_rs] - n.rs_sd[l.board_rs]) / 1000
-    na, ac = fare(dist_km)
+    board_stop_id = int(n.stop_ids[n.rs_stop[l.board_rs]])
+    alight_stop_id = int(n.stop_ids[n.rs_stop[l.alight_rs]])
+    route_id = int(n.route_ids[r])
+    non_ac_quote = fare_for_leg(route_id, board_stop_id, alight_stop_id, False, dist_km * 1000.0)
+    ac_quote = fare_for_leg(route_id, board_stop_id, alight_stop_id, True, dist_km * 1000.0)
     alts = sorted({route_label(n.route_short[a[0]]) for a in getattr(l, "alternatives", [])} - {label})
     samples = int(S.grid.n_hist[n.rs_link[l.board_rs:l.alight_rs][n.rs_link[l.board_rs:l.alight_rs] >= 0]].sum()) if l.alight_rs > l.board_rs else 0
     return {"type": "bus", "route": label, "route_variant": short.strip(),
@@ -328,7 +333,9 @@ def leg_json(l, live_info):
                        "lat": float(n.lat[l.to_stop]), "lon": float(n.lon[l.to_stop]), "time": iso(l.t1)},
             "wait_min": round(l.wait_s / 60, 1), "ride_min": round(l.ride_s / 60, 1),
             "stops": int(n.rs_ord[l.alight_rs] - n.rs_ord[l.board_rs]), "distance_km": round(dist_km, 1),
-            "fare_inr": {"non_ac": na, "ac": ac, "pink_saheli": 0},
+            "fare_inr": {"non_ac": non_ac_quote.fare_inr, "ac": ac_quote.fare_inr, "pink_saheli": 0},
+            "fare_source": {"non_ac": "observed" if non_ac_quote.source == "empirical" else "estimated",
+                            "ac": "observed" if ac_quote.source == "empirical" else "estimated"},
             "ac_share": S.route_ac.get(str(int(n.route_ids[r]))),
             "wait_source": live_info.get("wait_source", "history"), "next_buses_min": live_info.get("next", []),
             "ride_source": "live+history" if live_info.get("live") else "history",

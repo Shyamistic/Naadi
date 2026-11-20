@@ -25,7 +25,10 @@ MODEL_FILES = ["data/processed/model/network_prod/network.npz", "data/processed/
                "data/processed/model/network_prod_mm/network.npz", "data/processed/model/network_prod_mm/network_meta.json",
                "data/processed/model/grid_oct_all.parquet", "data/processed/model/tables/oct_all/geom.parquet",
                "data/processed/model/tables/oct_all/cell_h.parquet", "data/processed/model/intervals_v2.json",
-               "data/processed/model/route_ac.json", "data/processed/model/calibration_v2.json", "validation/results/eta_oct.json", "validation/results/summary.json"]
+               "data/processed/model/route_ac.json", "data/processed/model/calibration_v2.json",
+               "data/processed/model/walk_v1/meta.json", "data/processed/model/walk_v1/targets.npz",
+               "data/processed/model/walk_v1/pairs.npz", "data/processed/model/walk_v1/access.npz",
+               "data/processed/model/fares_v1/fare_table.parquet", "validation/results/eta_oct.json", "validation/results/summary.json"]
 
 
 def ssm_run(s, cmds, timeout=900):
