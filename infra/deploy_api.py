@@ -125,6 +125,10 @@ WantedBy=multi-user.target
 """
     cmds = [
         "set -e",
+        "if [ -d /opt/naadi/.prev ]; then rm -rf /opt/naadi/.prev; fi",
+        "mkdir -p /opt/naadi/.prev",
+        "if [ -d /opt/naadi/naadi ]; then cp -a /opt/naadi/naadi /opt/naadi/.prev/naadi; fi",
+        "if [ -d /opt/naadi/web ]; then cp -a /opt/naadi/web /opt/naadi/.prev/web; fi",
         "if [ ! -e /swapfile ]; then fallocate -l 2G /swapfile; chmod 600 /swapfile; mkswap /swapfile; fi",
         "swapon --show=NAME --noheadings | grep -qx /swapfile || swapon /swapfile",
         "grep -qE '^/swapfile[[:space:]]' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab",
@@ -147,7 +151,7 @@ WantedBy=multi-user.target
         "systemctl restart naadi-feed",
         "systemctl enable --now naadi-api caddy",
         "systemctl restart naadi-api",
-        "sleep 25",
+        "ok=0; for i in $(seq 1 24); do if curl -fsS http://127.0.0.1:8000/health | grep -q '\"status\"[[:space:]]*:[[:space:]]*\"ok\"'; then ok=1; break; fi; sleep 5; done; if [ \"$ok\" -ne 1 ]; then echo 'Naadi health check failed; rolling back previous release' >&2; rm -rf /opt/naadi/naadi /opt/naadi/web; if [ ! -d /opt/naadi/.prev/naadi ] || [ ! -d /opt/naadi/.prev/web ]; then echo 'Rollback unavailable: previous release backup is incomplete' >&2; exit 1; fi; cp -a /opt/naadi/.prev/naadi /opt/naadi/naadi; cp -a /opt/naadi/.prev/web /opt/naadi/web; chown -R naadi:naadi /opt/naadi/naadi /opt/naadi/web; systemctl restart naadi-api; echo 'Previous release restored' >&2; exit 1; fi",
         "systemctl reload caddy || systemctl restart caddy",
         "curl -s http://127.0.0.1:8000/health | head -c 400; echo",
         "ls -la /opt/naadi/data/live/ | tail -2",

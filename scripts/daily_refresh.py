@@ -26,12 +26,12 @@ def main() -> None:
             todo.append(d.isoformat())
         d += dt.timedelta(days=1)
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    steps = []
+    deploy = [PY, "-u", "infra/deploy_api.py"]
+    steps = [deploy]
     if todo:
         steps.append([PY, "-u", "scripts/run_test_days.py", *todo])
     steps += [[PY, "-u", "scripts/fetch_eta_logs.py"], [PY, "-u", "scripts/compare_google.py"],
-              [PY, "-u", "scripts/score_eta_calculator.py"], [PY, "-u", "scripts/build_summary.py"],
-              [PY, "-u", "infra/deploy_api.py"]]
+              [PY, "-u", "scripts/score_eta_calculator.py"], [PY, "-u", "scripts/build_summary.py"], deploy]
     with (ROOT / "data" / "daily_refresh.log").open("a", encoding="utf-8") as log:
         log.write(f"\n==== {dt.datetime.now(IST):%Y-%m-%d %H:%M} new days: {todo}\n")
         for cmd in steps:
@@ -39,9 +39,7 @@ def main() -> None:
             log.flush()
             r = subprocess.run(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, env=env)
             if r.returncode != 0:
-                log.write(f"step failed rc={r.returncode}\n")
-                if "run_test_days.py" in cmd[2]:
-                    break
+                log.write(f"step failed rc={r.returncode}; continuing\n")
 
 
 if __name__ == "__main__":
