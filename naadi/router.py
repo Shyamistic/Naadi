@@ -196,6 +196,32 @@ class Planner:
         return we, cum, self.wait[we]
 
     def _access(self, lat, lon, radius=ACCESS_M, egress=False):
+        try:
+            from .walk import WALK_MS, access as walk_access
+            candidates = walk_access(float(lat), float(lon))
+            target_index = self.net.walk_target_index()
+            rows = []
+            extra_s = getattr(self.net, "stop_exit_s" if egress else "stop_entry_s", np.zeros(self.net.n_stops, np.float32))
+            for target_id, seconds in candidates:
+                stop = target_index.get(str(target_id))
+                if stop is None:
+                    continue
+                distance = float(seconds) * WALK_MS
+                if distance <= radius * 1.35:
+                    total = float(seconds) + float(extra_s[stop])
+                    rows.append((int(stop), total, distance))
+            if rows:
+                best = {}
+                for stop, seconds, distance in rows:
+                    if stop not in best or seconds < best[stop][0]:
+                        best[stop] = (seconds, distance)
+                st = np.asarray(sorted(best), dtype=np.int32)
+                acc_s = np.asarray([best[int(s)][0] for s in st], dtype=np.float64)
+                acc_d = np.asarray([best[int(s)][1] for s in st], dtype=np.float64)
+                order = np.argsort(acc_s)
+                return st[order], acc_s[order], acc_d[order]
+        except (FileNotFoundError, OSError, ValueError):
+            pass
         st, d = self.net.nearby(lat, lon, radius)
         extra = getattr(self.net, "stop_exit_s" if egress else "stop_entry_s", np.zeros(self.net.n_stops, np.float32))[st]
         return st, walk_s(d) + extra, d
@@ -249,7 +275,8 @@ class Planner:
                 break
             if kd == 3:
                 s0 = pa[k, s]
-                dm = float(haversine(self.net.lat[s0], self.net.lon[s0], self.net.lat[s], self.net.lon[s]))
+                seconds = float(tau[k, s] - tau[k, s0])
+                dm = seconds * 1.25
                 legs.append(Leg("walk", tau[k, s0], tau[k, s], from_stop=s0, to_stop=s, walk_m=dm))
                 s = s0
                 continue
