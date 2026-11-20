@@ -33,6 +33,8 @@ from .trails import router as trails_router
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 BOX = (28.15, 29.40, 76.55, 77.75)  # Delhi NCR bounds accepted for coordinates
 VERSION = "naadi-1.0 (history: Oct 2026, 31 days; model: LightGBM link times + live nowcast)"
+EXTENSION_NOTE = ("Metro and Namo Bharat times come from GTFS timetables; shared-auto times come from frequency survey data. "
+                  "All multimodal extension times are estimates, not live observations, and are excluded from Naadi's scored bus accuracy results.")
 ATTRIBUTION = ("Bus data: Delhi Transport Stack (delhi.transportstack.in) and Delhi Open Transit Data "
                "(Department of Transport, GNCTD; IIIT-Delhi). Map data: OpenStreetMap contributors.")
 ALIASES = {"kashmiri gate": "kashmere gate", "kashmiri": "kashmere", "cp": "connaught place", "connaught": "shivaji stadium",
@@ -66,7 +68,7 @@ def load() -> None:
     if ev.exists():
         p = NowcastParams(**json.loads(ev.read_text())["nowcast"])
     S.net, S.grid = net, grid
-    S.has_metro = bool(np.any(np.asarray(getattr(net, "route_mode", np.zeros(net.n_routes, np.int8))) == 1))
+    S.has_multimodal = bool(np.any(np.isin(np.asarray(getattr(net, "route_kind", ["bus"] * net.n_routes)), ["metro", "rail", "shared_auto"])))
     S.naadi, S.tt = Planner(net, "naadi"), Planner(net, "timetable")
     S.live = LiveEngine(net, grid, cell_of_link, Path(os.environ.get("NAADI_SNAPSHOT", DATA / "live" / "latest.pb")), p)
     cal = MODEL / "calibration.json"
@@ -250,8 +252,27 @@ def leg_json(l, live_info):
                 "from_stop": int(n.stop_ids[l.from_stop]) if l.from_stop >= 0 else None,
                 "to_stop": int(n.stop_ids[l.to_stop]) if l.to_stop >= 0 else None,
                 "_ends": (a, b)}
-    if l.kind == "metro":
+    if l.kind in ("metro", "rail", "shared_auto"):
         ridx = l.route
+        if l.kind in ("rail", "shared_auto"):
+            operator = getattr(n, "route_operator", [""] * n.n_routes)[ridx]
+            source = getattr(n, "route_time_source", [""] * n.n_routes)[ridx]
+            fare_data = getattr(n, "route_fare", [None] * n.n_routes)[ridx]
+            board = {"stop_id": int(n.stop_ids[l.from_stop]), "name": n.stop_names[l.from_stop], "lat": float(n.lat[l.from_stop]),
+                     "lon": float(n.lon[l.from_stop]), "time": iso(l.t0 + l.wait_s)}
+            alight = {"stop_id": int(n.stop_ids[l.to_stop]), "name": n.stop_names[l.to_stop], "lat": float(n.lat[l.to_stop]),
+                      "lon": float(n.lon[l.to_stop]), "time": iso(l.t1)}
+            if l.kind == "rail":
+                return {"type": "rail", "operator": operator or "NCRTC", "service": "Namo Bharat", "route_id": int(n.route_ids[ridx]),
+                        "route": n.route_short[ridx], "towards": n.towards[ridx], "board": board, "alight": alight,
+                        "wait_min": round(l.wait_s / 60, 1), "ride_min": round(l.ride_s / 60, 1),
+                        "schedule_estimated": True, "estimated": True, "time_source": source or "NCRTC timetable (GTFS v1)",
+                        "fare_inr": None, "geometry": shape_slice(ridx, float(n.rs_sd[l.board_rs]), float(n.rs_sd[l.alight_rs]))}
+            return {"type": "shared_auto", "operator": operator or "Shared Last Mile", "service": "Shared auto / e-rickshaw",
+                    "route_id": int(n.route_ids[ridx]), "route": n.route_short[ridx], "towards": n.towards[ridx], "board": board, "alight": alight,
+                    "wait_min": round(l.wait_s / 60, 1), "ride_min": round(l.ride_s / 60, 1), "frequency_estimated": True,
+                    "estimated": True, "time_source": source or "Shared mobility GTFS v1 frequency survey (estimated)",
+                    "fare_inr": fare_data, "geometry": shape_slice(ridx, float(n.rs_sd[l.board_rs]), float(n.rs_sd[l.alight_rs]))}
         info = n.metro_meta.get("routes", {}).get(str(ridx), {})
         board_sid = n.station_id[l.from_stop] if hasattr(n, "station_id") else str(int(n.stop_ids[l.from_stop]) - 90000000)
         alight_sid = n.station_id[l.to_stop] if hasattr(n, "station_id") else str(int(n.stop_ids[l.to_stop]) - 90000000)
@@ -337,21 +358,24 @@ def journey_json(j, label_set, live, t_dep, pl_tt, o_xy, d_xy, multimodal=False)
     vals = [(h, v) for h, v in enumerate(chakra) if v is not None]
     quiet = min(vals, key=lambda x: x[1]) if vals else None
     tt = refine(pl_tt, j, t_dep)
-    transit_legs = [l for l in legs if l["type"] in ("bus", "metro")]
+    transit_legs = [l for l in legs if l["type"] in ("bus", "metro", "rail", "shared_auto")]
     bus_legs = [l for l in legs if l["type"] == "bus"]
     fare_na = sum(l["fare_inr"]["non_ac"] for l in bus_legs)
     fare_ac = sum(l["fare_inr"]["ac"] for l in bus_legs)
-    metro_fare = None
+    shared_fare = sum((l.get("fare_inr") or {}).get("amount", 0) for l in legs if l["type"] == "shared_auto")
+    rail_present = any(l["type"] == "rail" for l in legs)
     fare = {"non_ac": fare_na, "ac": fare_ac, "pink_saheli": 0}
     if multimodal:
         from .multimodal import journey_metro_fare
         metro_fare = journey_metro_fare(S.net, j, t_dep)
-        if metro_fare is None:
-            fare = {"non_ac": None, "ac": None, "pink_saheli": None, "metro": None}
-        else:
-            fare = {"non_ac": fare_na + metro_fare, "ac": fare_ac + metro_fare,
-                    "pink_saheli": metro_fare, "metro": metro_fare}
-    modes = sorted({l["type"] for l in transit_legs})
+        unknown = metro_fare is None or rail_present
+        fare = {"non_ac": None if unknown else fare_na + (metro_fare or 0) + shared_fare,
+                "ac": None if unknown else fare_ac + (metro_fare or 0) + shared_fare,
+                "pink_saheli": None if unknown else (metro_fare or 0) + shared_fare,
+                "metro": metro_fare, "rail": None if rail_present else 0,
+                "shared_auto": shared_fare}
+    mode_order = {"bus": 0, "metro": 1, "rail": 2, "shared_auto": 3}
+    modes = sorted({l["type"] for l in transit_legs}, key=lambda x: mode_order.get(x, 99))
     return {"labels": sorted(label_set), "total_min": round(tot / 60, 1),
             "range_min": [round(rng[0] / 60), round(rng[1] / 60)] if rng else None,
             "depart": iso(t_dep), "arrive": iso(j.arrive),
@@ -362,7 +386,7 @@ def journey_json(j, label_set, live, t_dep, pl_tt, o_xy, d_xy, multimodal=False)
             "quiet_hour": {"hour": quiet[0], "total_min": quiet[1]} if quiet else None,
             "samay_chakra": chakra, "timetable_min": round(tt.total_s / 60, 1) if tt else None,
             "live": live, "legs": legs,
-            **({"modes": ["metro" if x == "metro" else "bus" for x in modes], "schedule_estimated": True} if multimodal else {})}
+            **({"modes": modes, "schedule_estimated": True} if multimodal else {})}
 
 
 # ---------------------------------------------------------------- endpoints
@@ -381,10 +405,12 @@ def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<
              to: str = Query(..., description="'lat,lon', 'stop:<id>' or a stop name"),
              depart: str | None = Query(None, description="'now' (default) or ISO time in IST, e.g. 2026-11-17T08:30"),
              options: int = Query(3, ge=1, le=5),
-             modes: str = Query("bus,metro")):
-    mode_set = tuple(sorted({x.strip() for x in modes.split(",") if x.strip()}))
-    if set(mode_set) not in ({"bus"}, {"bus", "metro"}):
-        raise HTTPException(400, "modes must be 'bus' or 'bus,metro'.")
+             modes: str = Query("bus,metro,rail,shared_auto")):
+    valid_modes = {"bus", "metro", "rail", "shared_auto"}
+    requested = {x.strip() for x in modes.split(",") if x.strip()}
+    if not requested or not requested.issubset(valid_modes):
+        raise HTTPException(400, "modes must contain only bus, metro, rail, or shared_auto.")
+    mode_set = tuple(x for x in ("bus", "metro", "rail", "shared_auto") if x in requested)
     o, d = resolve(frm), resolve(to)
     t_dep, near_now = parse_depart(depart)
     o_xy, d_xy = (o[0], o[1]), (d[0], d[1])
@@ -402,17 +428,19 @@ def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<
                         first_wait=first_wait if live else None,
                         live_wait_factor=S.live_wait_factor if live else 1.0, modes=("bus",))
     multimodal = []
-    if "metro" in mode_set and S.has_metro:
+    requested_extension = tuple(x for x in mode_set if x != "bus")
+    if requested_extension and S.has_multimodal:
+        search_modes = tuple(x for x in mode_set if x in ("bus", "metro", "rail", "shared_auto"))
         multimodal = [j for j in plan_options(S.naadi, o_xy, d_xy, t_dep, n=2, live_mult=mult,
                                                calib=S.calib_live if live else S.naadi.calib,
                                                first_wait=first_wait if live else None,
                                                live_wait_factor=S.live_wait_factor if live else 1.0,
-                                               modes=("bus", "metro"), require_metro=True)
-                      if any(l.kind == "metro" for l in j.legs)]
+                                               modes=search_modes, require_metro=False)
+                      if any(l.kind in requested_extension for l in j.legs)]
     if not uniq and not multimodal:
         return {"query": {"from": o[2], "to": d[2], "depart": iso(t_dep), "modes": list(mode_set)}, "options": [],
                 "message": "No bus journey found within 1 km of both places at this time.", "attribution": ATTRIBUTION,
-                "multimodal_options": [], "multimodal_note": NOTE if "metro" in mode_set and getattr(S, "has_metro", False) else None}
+                "multimodal_options": [], "multimodal_note": EXTENSION_NOTE if requested_extension and getattr(S, "has_multimodal", False) else None}
     labels = defaultdict(set)
     if uniq:
         labels[min(range(len(uniq)), key=lambda i: uniq[i].total_s)].add("fastest")
@@ -435,7 +463,7 @@ def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<
                      "the model's time for that hour. Fares are indicative (Delhi Tourism city-bus table); women ride free "
                      "with a Pink Saheli card.",
             "multimodal_options": mm_out,
-            "multimodal_note": "Metro times come from the DMRC timetable (GTFS v1). Its calendar ended on 31 Dec 2025 and it has no Sunday trips, so the weekday timetable is used on every day. They are timetable estimates, not checked against live trains, and are not part of Naadi's accuracy results." if "metro" in mode_set and S.has_metro else None}
+            "multimodal_note": EXTENSION_NOTE if requested_extension and S.has_multimodal else None}
 
 
 @app.get("/stops/{stop_id}/departures")

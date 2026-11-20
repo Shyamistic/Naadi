@@ -25,6 +25,8 @@ def show(o, i):
                         f"next {l['next_buses_min'][:2]} ride {l['ride_min']}")
         elif l["type"] == "metro":
             legs.append(f"{l['line']} {l['board']['name'][:20]}->{l['alight']['name'][:20]} wait {l['wait_min']} ride {l['ride_min']}")
+        elif l["type"] in ("rail", "shared_auto"):
+            legs.append(f"{l['type']} {l['board']['name'][:20]}->{l['alight']['name'][:20]} wait {l['wait_min']} ride {l['ride_min']} fare {l['fare_inr']}")
         else:
             legs.append(f"walk {l['metres']}m")
     print(f"  #{i} {o['total_min']} min {o['range_min']} labels {o['labels']} quiet {o['quiet_hour']} timetable {o['timetable_min']} "
@@ -32,7 +34,7 @@ def show(o, i):
     print("     " + " | ".join(legs))
 
 
-def check_options(body, expect_metro=False):
+def check_options(body, expected_types=()):
     options = body.get("options", [])
     signatures = set()
     for option in options:
@@ -47,13 +49,13 @@ def check_options(body, expect_metro=False):
                 fail("SamayChakra departure spoke differs from card")
         except (KeyError, IndexError, TypeError, ValueError):
             fail("malformed SamayChakra")
-    metro = body.get("multimodal_options", [])
-    if expect_metro:
-        for option in metro:
-            if not option.get("schedule_estimated") or option.get("range_min") is not None:
-                fail("invalid multimodal option estimate fields")
-            if not any(leg.get("type") == "metro" for leg in option.get("legs", [])):
-                fail("multimodal option has no metro leg")
+    extension = body.get("multimodal_options", [])
+    for option in extension:
+        if not option.get("schedule_estimated") or option.get("range_min") is not None:
+            fail("invalid multimodal option estimate fields")
+        types = {leg.get("type") for leg in option.get("legs", [])}
+        if expected_types and not any(kind in types for kind in expected_types):
+            fail(f"multimodal option has none of {expected_types}")
     return options
 
 
@@ -86,19 +88,21 @@ def main() -> None:
     print("search:", [r["name"] for r in requests.get(f"{BASE}/stops/search", params={"q": "kashmiri gate"}, timeout=10).json()["results"][:4]])
 
     queries = [
-        {"from": "28.665476,77.230173", "to": "Nehru Place", "depart": "2026-11-24T08:30"},
-        {"from": "28.665476,77.230173", "to": "Nehru Place", "depart": "2026-11-24T23:00"},
-        {"from": "Kashmere Gate ISBT", "to": "Nehru Place", "depart": "2026-11-24T08:30"},
+        ("brief", {"from": "Kashmere Gate ISBT", "to": "Nehru Place", "depart": "2026-11-24T08:30"}, ("metro",)),
+        ("namo", {"from": "Sarai Kale Khan", "to": "Modipuram", "depart": "2026-11-24T08:30", "modes": "rail"}, ("rail",)),
+        ("shared first mile", {"from": "Govind Puri", "to": "Iiitd Campus", "depart": "2026-11-24T08:30", "modes": "shared_auto"}, ("shared_auto",)),
     ]
-    for params in queries:
+    for name, params, expected_types in queries:
         t0 = time.time()
         body = get_journey(params)
-        print(f"== {params['depart']}: in {time.time() - t0:.2f}s, live={body.get('query', {}).get('live')}")
+        print(f"== {name} {params['depart']}: in {time.time() - t0:.2f}s, live={body.get('query', {}).get('live')}")
         for i, option in enumerate(body.get("options", [])):
             show(option, i)
-        check_options(body, expect_metro=True)
-
-    bus_body = get_journey({**queries[2], "modes": "bus"})
+        for i, option in enumerate(body.get("multimodal_options", [])):
+            print(f"  multimodal #{i}:")
+            show(option, i)
+        check_options(body, expected_types)
+    bus_body = get_journey({"from": "Kashmere Gate ISBT", "to": "Nehru Place", "depart": "2026-11-24T08:30", "modes": "bus"})
     if bus_body.get("multimodal_options") != []:
         fail("modes=bus returned multimodal options")
 
@@ -117,7 +121,7 @@ def main() -> None:
         print(f"== now: live={body.get('query', {}).get('live')}")
         for i, option in enumerate(body.get("options", [])):
             show(option, i)
-        check_options(body, expect_metro=True)
+        check_options(body, ("metro",))
     else:
         print("live not available, live checks skipped")
 

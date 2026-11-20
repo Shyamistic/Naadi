@@ -8,15 +8,17 @@ frequency-based modes without changing the router's bus data model.
 from __future__ import annotations
 
 import csv
+import io
 import json
 import math
+import zipfile
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 
 from .network import FOOT_RADIUS_M, MAX_WAIT_S, MIN_BPH, haversine, walk_s
-from .paths import METRO_GTFS
+from .paths import METRO_GTFS, ROOT
 
 METRO_ID_BASE = 90_000_000
 ENTRY_S = 180.0
@@ -167,8 +169,9 @@ def _nearby_indices(lat, lon, query_i, radius):
     return out
 
 
-def build_multimodal(bus_dir: Path, metro_dir: Path = METRO_GTFS, out_dir: Path | None = None):
-    """Write ``out_dir`` as the bus network plus schedule-estimated metro."""
+def build_multimodal(bus_dir: Path, metro_dir: Path = METRO_GTFS, out_dir: Path | None = None,
+                     ncrtc_zip: Path | None = None, shared_zip: Path | None = None):
+    """Write ``out_dir`` as the bus network plus all selected multimodal feeds."""
     if out_dir is None:  # convenient two-argument form: bus directory, output directory
         out_dir, metro_dir = metro_dir, METRO_GTFS
     bus_dir, metro_dir, out_dir = Path(bus_dir), Path(metro_dir), Path(out_dir)
@@ -347,6 +350,207 @@ def build_multimodal(bus_dir: Path, metro_dir: Path = METRO_GTFS, out_dir: Path 
                         shp_lon=np.asarray(shp_lon, np.float32), shp_d=np.asarray(shp_d, np.float32))
     (out_dir / "network_meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     print(f"multimodal network: {n_stops} stops, {len(route_ids)} routes, {len(patterns)} metro patterns, {len(platforms)} platforms -> {out_dir}")
+    if ncrtc_zip or shared_zip:
+        extend_frequency_modes(out_dir, ncrtc_zip=ncrtc_zip, shared_zip=shared_zip)
+
+
+
+def _zip_table(z: zipfile.ZipFile, filename: str):
+    name = next((n for n in z.namelist() if n.endswith(filename) and "__MACOSX" not in n), None)
+    if name is None:
+        return []
+    with z.open(name) as raw:
+        return list(csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig")))
+
+
+def _feed_specs(path: Path, mode: str, stop_base: int, route_base: int):
+    """Parse a timetable or frequency GTFS feed without extracting raw files."""
+    with zipfile.ZipFile(path) as z:
+        stops = _zip_table(z, "stops.txt")
+        routes = _zip_table(z, "routes.txt")
+        trips = _zip_table(z, "trips.txt")
+        stop_times = _zip_table(z, "stop_times.txt")
+        frequencies = _zip_table(z, "frequencies.txt")
+    by_trip = defaultdict(list)
+    for row in stop_times:
+        by_trip[row["trip_id"]].append(row)
+    for rows in by_trip.values():
+        rows.sort(key=lambda r: int(r.get("stop_sequence", 0)))
+    stop_lookup = {r["stop_id"]: (r["stop_name"], float(r["stop_lat"]), float(r["stop_lon"])) for r in stops}
+    trip_lookup = {r["trip_id"]: r for r in trips}
+    freq_lookup = {r["trip_id"]: r for r in frequencies}
+    out = []
+    for n, route in enumerate(routes):
+        route_trips = [t for t in trips if t["route_id"] == route["route_id"] and by_trip.get(t["trip_id"])]
+        if not route_trips:
+            continue
+        trip = route_trips[0]
+        raw_seq = by_trip[trip["trip_id"]]
+        if mode == "rail":
+            forward = sorted(stops, key=lambda r: float(r["stop_lat"]) + float(r["stop_lon"]))
+            first_lat = float(stop_lookup[raw_seq[0]["stop_id"]][1]); last_lat = float(stop_lookup[raw_seq[-1]["stop_id"]][1])
+            ordered = forward if first_lat < last_lat else list(reversed(forward))
+            known_distance = float(sum(haversine(stop_lookup[a["stop_id"]][1], stop_lookup[a["stop_id"]][2],
+                                                  stop_lookup[b["stop_id"]][1], stop_lookup[b["stop_id"]][2])
+                                       for a, b in zip(raw_seq, raw_seq[1:])))
+            known_time = max(1.0, _seconds(raw_seq[-1]["arrival_time"]) - _seconds(raw_seq[0]["arrival_time"]))
+            speed = max(8.0, known_distance / known_time)
+            first = _seconds(raw_seq[0]["arrival_time"])
+            offsets_list = [0.0]
+            for a, b in zip(ordered, ordered[1:]):
+                distance = float(haversine(float(a["stop_lat"]), float(a["stop_lon"]), float(b["stop_lat"]), float(b["stop_lon"])))
+                offsets_list.append(offsets_list[-1] + max(120.0, distance / speed))
+            seq = [{"stop_id": r["stop_id"], "arrival_time": f"{int(first + offsets_list[i]) // 3600:02d}:{int(first + offsets_list[i]) % 3600 // 60:02d}:{int(first + offsets_list[i]) % 60:02d}",
+                    "departure_time": f"{int(first + offsets_list[i]) // 3600:02d}:{int(first + offsets_list[i]) % 3600 // 60:02d}:{int(first + offsets_list[i]) % 60:02d}"}
+                   for i, r in enumerate(ordered)]
+        else:
+            seq = raw_seq
+            first = _seconds(seq[0]["arrival_time"])
+        offsets = np.asarray([_seconds(x["arrival_time"]) - first for x in seq], np.float32)
+        sd = np.asarray([float(x.get("shape_dist_traveled") or 0.0) for x in seq], np.float32)
+        if not np.any(sd[1:] > sd[:-1]):
+            sd = np.r_[0.0, np.cumsum([float(haversine(stop_lookup[a["stop_id"]][1], stop_lookup[a["stop_id"]][2],
+                                                        stop_lookup[b["stop_id"]][1], stop_lookup[b["stop_id"]][2]))
+                                      for a, b in zip(seq, seq[1:])])].astype(np.float32)
+        freq = np.zeros((len(seq), 24), np.float32)
+        if mode == "rail":
+            for t in route_trips:
+                rows = by_trip[t["trip_id"]]
+                if rows:
+                    freq[:, (_seconds(rows[0]["departure_time"]) // 3600) % 24] += 1.0
+        else:
+            f = freq_lookup.get(trip["trip_id"], {})
+            headway = float(f.get("headway_secs") or 0)
+            start, end = _seconds(f.get("start_time", "00:00:00")), _seconds(f.get("end_time", "00:00:00"))
+            if headway > 0:
+                for h in range(24):
+                    centre = h * 3600 + 1800
+                    if start <= centre < end:
+                        freq[:, h] = 3600.0 / headway
+        out.append({"mode": mode, "source_id": route["route_id"], "route_id": route_base + n,
+                    "short": route.get("route_short_name") or route.get("route_id", ""),
+                    "desc": route.get("route_long_name") or route.get("route_desc") or "",
+                    "agency": "NCRTC" if mode == "rail" else "Shared Last Mile",
+                    "stop_ids": [x["stop_id"] for x in seq], "offsets": offsets, "sd": sd, "freq": freq,
+                    "shape_id": trip.get("shape_id", ""), "headsign": trip.get("trip_headsign", ""),
+                    "fare": None if mode == "rail" else {"amount": 20, "estimated": True,
+                                                               "source": "Shared mobility GTFS v1 has no fare field; INR 20 documented estimate"}})
+    # Read shapes once after the route rows so this parser stays small and deterministic.
+    with zipfile.ZipFile(path) as z:
+        shape_rows = _zip_table(z, "shapes.txt")
+    shapes = defaultdict(list)
+    for row in shape_rows:
+        shapes[row["shape_id"]].append((int(row.get("shape_pt_sequence", 0)), float(row["shape_pt_lat"]), float(row["shape_pt_lon"])))
+    for spec in out:
+        rows = sorted(shapes.get(spec["shape_id"], []))
+        spec["shape"] = [[la, lo] for _, la, lo in rows]
+    stop_rows = [(stop_base + i, r["stop_id"], r["stop_name"], float(r["stop_lat"]), float(r["stop_lon"]))
+                 for i, r in enumerate(stops)]
+    return stop_rows, out
+
+
+def _append_footpaths(lat, lon, fp_ptr, fp_to, fp_s, old_n):
+    """Extend footpaths with straight-line links to each new feed stop."""
+    fp_from = np.repeat(np.arange(old_n, dtype=np.int32), np.diff(fp_ptr)).tolist()
+    to, sec = fp_to.tolist(), fp_s.tolist()
+    for i in range(old_n, len(lat)):
+        for j, distance in _nearby_indices(lat, lon, i, FOOT_RADIUS_M):
+            if j >= i:
+                continue
+            fp_from.extend([i, j]); to.extend([j, i])
+            walking = float(walk_s(distance))
+            sec.extend([walking, walking])
+    return _csr(fp_from, to, sec, len(lat))
+
+
+def extend_frequency_modes(out_dir: Path, ncrtc_zip: Path | None = None, shared_zip: Path | None = None):
+    """Append NCRTC rail and shared-mobility frequency routes to a multimodal network."""
+    feeds = []
+    if ncrtc_zip and Path(ncrtc_zip).exists():
+        feeds.append(_feed_specs(Path(ncrtc_zip), "rail", 110_000_000, 110_000))
+    if shared_zip and Path(shared_zip).exists():
+        feeds.append(_feed_specs(Path(shared_zip), "shared_auto", 120_000_000, 120_000))
+    if not feeds:
+        return
+    z = np.load(Path(out_dir) / "network.npz")
+    a = {k: z[k] for k in z.files}
+    meta = json.loads((Path(out_dir) / "network_meta.json").read_text(encoding="utf-8"))
+    old_n, old_r, old_rs = len(a["stop_ids"]), len(a["route_ids"]), len(a["rs_stop"])
+    stop_rows = [row for rows, _ in feeds for row in rows]
+    stop_index = {source: old_n + i for i, (_, source, *_rest) in enumerate(stop_rows)}
+    lat = np.r_[a["lat"], [r[3] for r in stop_rows]]
+    lon = np.r_[a["lon"], [r[4] for r in stop_rows]]
+    stop_ids = np.r_[a["stop_ids"].astype(np.int64), [r[0] for r in stop_rows]].astype(np.int32)
+    stop_names = list(meta["stop_names"]) + [r[2] for r in stop_rows]
+    route_ids, route_short = a["route_ids"].astype(np.int64).tolist(), list(meta["route_short"])
+    route_desc, route_agency = list(meta["route_desc"]), list(meta["route_agency"])
+    route_kind = list(meta.get("route_kind", ["bus"] * old_r)); route_mode = a.get("route_mode", np.zeros(old_r, np.int8)).astype(np.int8).tolist()
+    line_name, line_code, line_color = (list(meta.get(k, [""] * old_r)) for k in ("line_name", "line_code", "line_color"))
+    metro_route_id, towards = list(meta.get("metro_route_id", [None] * old_r)), list(meta.get("towards", [""] * old_r))
+    route_operator, route_time_source, route_fare = (list(meta.get(k, [""] * old_r)) for k in ("route_operator", "route_time_source", "route_fare"))
+    r_ptr = a["r_ptr"].astype(np.int32).tolist(); rs_stop = a["rs_stop"].astype(np.int32).tolist()
+    rs_sd, rs_ord, rs_route, rs_link = (a[k].astype(np.float32 if k == "rs_sd" else np.int32).tolist() for k in ("rs_sd", "rs_ord", "rs_route", "rs_link"))
+    extra = {k: [] for k in ("cum_naadi", "cum_timetable", "wait_naadi", "wait_timetable", "cv", "f_eff", "f_sched", "w_emp")}
+    extension_meta = {}
+    next_route = old_r
+    for rows, specs in feeds:
+        mode = specs[0]["mode"] if specs else ""
+        extension_meta[mode] = {"source": "ncrtc_static_gtfs_v1.zip" if mode == "rail" else "shared_mobility_gtfs_v1.zip",
+                                "time_source": "NCRTC timetable (GTFS v1)" if mode == "rail" else "Shared mobility GTFS v1 frequency survey (estimated)",
+                                "fare": "not supplied; INR 20 documented estimate" if mode == "shared_auto" else "not supplied"}
+        for spec in specs:
+            ridx = next_route; next_route += 1
+            route_ids.append(spec["route_id"]); route_short.append(spec["short"]); route_desc.append(spec["desc"]); route_agency.append(spec["agency"])
+            route_kind.append(mode); route_mode.append(2 if mode == "rail" else 3)
+            line_name.append("Namo Bharat" if mode == "rail" else "Shared auto / e-rickshaw"); line_code.append("NCRTC" if mode == "rail" else "SHARED_AUTO")
+            line_color.append("#D97706" if mode == "rail" else "#15803D"); metro_route_id.append(None)
+            towards.append(spec["headsign"] or spec["desc"]); route_operator.append("NCRTC" if mode == "rail" else "Shared Last Mile")
+            route_time_source.append(extension_meta[mode]["time_source"]); route_fare.append(spec["fare"])
+            for i, sid in enumerate(spec["stop_ids"]):
+                rs_stop.append(stop_index[sid]); rs_sd.append(float(spec["sd"][i])); rs_ord.append(i + 1); rs_route.append(ridx); rs_link.append(-1)
+            r_ptr.append(len(rs_stop))
+            c = np.broadcast_to(spec["offsets"], (2, 24, len(spec["offsets"]))).copy()
+            f = np.broadcast_to(spec["freq"].T, (2, 24, len(spec["offsets"]))).copy()
+            if mode == "shared_auto":
+                f[1] = 0.0  # the supplied survey calendar is weekday-only
+            w = np.where(f >= MIN_BPH, np.minimum(1800.0 / np.maximum(f, 1), MAX_WAIT_S), np.inf).astype(np.float32)
+            extra["cum_naadi"].append(c); extra["cum_timetable"].append(c.copy()); extra["wait_naadi"].append(w); extra["wait_timetable"].append(w.copy())
+            extra["cv"].append(np.zeros_like(c)); extra["f_eff"].append(f.copy()); extra["f_sched"].append(f.copy()); extra["w_emp"].append(np.full_like(c, np.nan))
+    all_rs = np.asarray(rs_stop, np.int32)
+    order = np.argsort(all_rs, kind="stable")
+    arrays = {
+        "stop_ids": stop_ids, "lat": lat, "lon": lon, "route_ids": np.asarray(route_ids, np.int32), "r_ptr": np.asarray(r_ptr, np.int32),
+        "rs_stop": all_rs, "rs_sd": np.asarray(rs_sd, np.float32), "rs_ord": np.asarray(rs_ord, np.int32), "rs_route": np.asarray(rs_route, np.int32), "rs_link": np.asarray(rs_link, np.int32),
+        "sr_ptr": np.searchsorted(all_rs[order], np.arange(len(stop_ids) + 1)).astype(np.int32), "sr_rs": order.astype(np.int32),
+    }
+    for key in ("cum_naadi", "cum_timetable", "wait_naadi", "wait_timetable", "cv", "f_eff", "f_sched", "w_emp"):
+        arrays[key] = np.concatenate([a[key], *extra[key]], axis=2)
+    arrays["fp_ptr"], arrays["fp_to"], arrays["fp_s"] = _append_footpaths(lat, lon, a["fp_ptr"], a["fp_to"], a["fp_s"], old_n)
+    for key in ("stop_kind", "stop_entry_s", "stop_exit_s"):
+        if key in a:
+            arrays[key] = np.r_[a[key], np.zeros(len(stop_rows), a[key].dtype)]
+    for key in ("shp_ptr", "shp_lat", "shp_lon", "shp_d"):
+        arrays[key] = a[key].copy()
+    for _, specs in feeds:
+        for spec in specs:
+            shape = spec.get("shape") or [[lat[stop_index[s]], lon[stop_index[s]]] for s in spec["stop_ids"]]
+            arrays["shp_lat"] = np.r_[arrays["shp_lat"], [x[0] for x in shape]]
+            arrays["shp_lon"] = np.r_[arrays["shp_lon"], [x[1] for x in shape]]
+            d = [0.0]
+            d.extend(float(haversine(x[0], x[1], y[0], y[1])) + d[-1] for x, y in zip(shape, shape[1:]))
+            arrays["shp_d"] = np.r_[arrays["shp_d"], d]; arrays["shp_ptr"] = np.r_[arrays["shp_ptr"], len(arrays["shp_lat"])]
+    arrays["route_mode"] = np.asarray(route_mode, np.int8)
+    arrays["stop_kind"] = np.r_[a.get("stop_kind", np.zeros(old_n, np.int8)), np.zeros(len(stop_rows), np.int8)]
+    arrays["stop_entry_s"] = np.r_[a.get("stop_entry_s", np.zeros(old_n, np.float32)), np.zeros(len(stop_rows), np.float32)]
+    arrays["stop_exit_s"] = np.r_[a.get("stop_exit_s", np.zeros(old_n, np.float32)), np.zeros(len(stop_rows), np.float32)]
+    meta.update({"route_short": route_short, "route_desc": route_desc, "route_agency": route_agency, "route_kind": route_kind, "stop_names": stop_names,
+                 "line_name": line_name, "line_code": line_code, "line_color": line_color, "metro_route_id": metro_route_id, "towards": towards,
+                 "route_operator": route_operator, "route_time_source": route_time_source, "route_fare": route_fare,
+                 "station_id": list(meta.get("station_id", [""] * old_n)) + ["" for _ in stop_rows],
+                 "station_name": list(meta.get("station_name", [""] * old_n)) + ["" for _ in stop_rows], "extensions": extension_meta})
+    np.savez_compressed(Path(out_dir) / "network.npz", **arrays)
+    (Path(out_dir) / "network_meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    print(f"frequency extensions: {len(stop_rows)} stops, {next_route - old_r} routes ({', '.join(extension_meta)}) -> {out_dir}")
 
 
 def journey_metro_fare(net, j, t_dep):

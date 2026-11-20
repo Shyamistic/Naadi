@@ -166,14 +166,14 @@ class Journey:
 
     @property
     def n_transit(self):
-        return sum(1 for l in self.legs if l.kind in ("bus", "metro"))
+        return sum(1 for l in self.legs if l.kind in ("bus", "metro", "rail", "shared_auto"))
 
     @property
     def n_bus(self):
         return sum(1 for l in self.legs if l.kind == "bus")
 
     def signature(self):
-        return tuple((l.route, l.board_rs, l.alight_rs) for l in self.legs if l.kind in ("bus", "metro"))
+        return tuple((l.route, l.board_rs, l.alight_rs) for l in self.legs if l.kind in ("bus", "metro", "rail", "shared_auto"))
 
     def walk_m(self):
         return sum(l.walk_m for l in self.legs if l.kind == "walk")
@@ -210,11 +210,8 @@ class Planner:
         if len(acc_st) == 0 or len(eg_st) == 0:
             return [], (acc_st, eg_st)
         ok = np.ones(n.n_routes, np.bool_)
-        for r in self.metro_routes:
-            if "metro" not in modes:
-                ok[r] = False
         for r in range(n.n_routes):
-            if self.route_kind[r] == "bus" and "bus" not in modes:
+            if self.route_kind[r] not in modes:
                 ok[r] = False
         tau, kind, pa, pb, ptb, pw = _raptor(float(t_dep), cum_t, wait, n.r_ptr, n.rs_stop, n.sr_ptr, n.sr_rs,
                                              n.rs_route, n.fp_ptr, n.fp_to, n.fp_s, ok, acc_st,
@@ -261,7 +258,7 @@ class Planner:
                 r = int(self.net.rs_route[b])
                 sb = int(self.net.rs_stop[b])
                 tb, wt = ptb[k, s], pw[k, s]
-                legs.append(Leg("metro" if self.route_kind[r] == "metro" else "bus", tb, tau[k, s], from_stop=sb, to_stop=s, route=r, board_rs=b, alight_rs=a,
+                legs.append(Leg(self.route_kind[r], tb, tau[k, s], from_stop=sb, to_stop=s, route=r, board_rs=b, alight_rs=a,
                                 wait_s=wt, ride_s=tau[k, s] - tb - wt))
                 s = sb
                 k -= 1

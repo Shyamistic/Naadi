@@ -84,7 +84,7 @@ def refine(pl: Planner, j: Journey, t_dep: float, calib=None, cum=None) -> Journ
             legs.append(replace(l, t0=t, t1=t + d))
             t += d
             continue
-        if l.kind == "metro":
+        if l.kind in ("metro", "rail", "shared_auto"):
             nl = replace(l, t0=t, t1=t + l.wait_s + l.ride_s)
             legs.append(nl)
             t = nl.t1
@@ -108,7 +108,7 @@ def with_first_wait(j: Journey, t_dep: float, next_arrivals, factor=1.0) -> Jour
     """Replace the first transit wait with arrivals from a supplied live-bus lookup."""
     t = t_dep
     if next((l for l in j.legs if l.kind != "walk"), None) is not None:
-        if next(l for l in j.legs if l.kind != "walk").kind == "metro":
+        if next(l for l in j.legs if l.kind != "walk").kind in ("metro", "rail", "shared_auto"):
             return j
     for i, l in enumerate(j.legs):
         if l.kind == "walk":
@@ -116,7 +116,7 @@ def with_first_wait(j: Journey, t_dep: float, next_arrivals, factor=1.0) -> Jour
             l.t0, l.t1 = t, t + d
             t += d
             continue
-        if l.kind == "metro":
+        if l.kind in ("metro", "rail", "shared_auto"):
             t += l.t1 - l.t0
             continue
         rs = [a[1] for a in getattr(l, "alternatives", [(l.route, l.board_rs, l.alight_rs, 1.0)])]
