@@ -181,6 +181,9 @@ class Network:
         self.line_color = meta.get("line_color", [""] * len(self.route_ids))
         self.metro_route_id = meta.get("metro_route_id", [None] * len(self.route_ids))
         self.towards = meta.get("towards", [""] * len(self.route_ids))
+        self.route_operator = meta.get("route_operator", [""] * len(self.route_ids))
+        self.route_time_source = meta.get("route_time_source", [""] * len(self.route_ids))
+        self.route_fare = meta.get("route_fare", [None] * len(self.route_ids))
         self.station_id = meta.get("station_id", [""] * len(self.stop_ids))
         self.station_name = meta.get("station_name", [""] * len(self.stop_ids))
         self.meta = meta
