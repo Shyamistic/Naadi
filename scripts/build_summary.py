@@ -106,10 +106,11 @@ def _bootstrap(diff, ids, seed=1):
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--journeys", default="journeys_oct_v2")
-    ap.add_argument("--fit", nargs="+", default=["2026-10-25", "2026-10-26", "2026_10_25", "2026_10_26"])
-    ap.add_argument("--conformal", nargs="+", default=["2026-10-27", "2026-10-28", "2026_10_27", "2026_10_28"])
+    ap.add_argument("--fit", nargs="+", default=["2026-10-25", "2026-10-26"])
+    ap.add_argument("--conformal", nargs="+", default=["2026-10-27", "2026-10-28"])
     a = ap.parse_args()
     t = pq.read_table(ROWS / f"{a.journeys}.parquet").to_pydict()
+    t["day"] = [str(x).replace("_", "-") for x in t["day"]]
     days = np.asarray(t["day"])
     fit_days, cf_days = set(a.fit), set(a.conformal)
     test_days = sorted(set(days) - fit_days - cf_days)
