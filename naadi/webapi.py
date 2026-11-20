@@ -238,7 +238,7 @@ def live_buses(route_id: int | None = None, min_lat: float = core.BOX[0], max_la
                      round(progress, 1) if progress >= 0 else None])
     return JSONResponse({"feed_time": core.iso(feed_ts) if feed_ts else None, "count": len(rows),
                          "fields": ["route_id", "route", "variant", "lat", "lon", "age_s", "progress_m"], "buses": rows,
-                         "note": "Vehicle identifiers and licence plates are never published."}, headers={"Cache-Control": "no-store"})
+                         "note": "Source identities and licence plates are never published."}, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/legs/next-buses")

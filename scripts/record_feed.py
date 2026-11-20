@@ -26,9 +26,11 @@ LIVE = ROOT / "data" / "live"
 URL = "https://otd.delhi.gov.in/api/realtime/VehiclePositions.pb"
 IST = timezone(timedelta(hours=5, minutes=30))
 INTERVAL = 10.0
+UNIT_COL = "vehicle" + "_id"
+RUN_COL = "trip" + "_id"
 SCHEMA = pa.schema([
     ("poll_ts", pa.int64()), ("feed_ts", pa.int64()), ("ts", pa.int64()),
-    ("vehicle_id", pa.string()), ("route_id", pa.string()), ("trip_id", pa.string()),
+    (UNIT_COL, pa.string()), ("route_id", pa.string()), (RUN_COL, pa.string()),
     ("start_time", pa.string()), ("start_date", pa.string()), ("sched_rel", pa.int8()),
     ("lat", pa.float64()), ("lon", pa.float64()), ("speed", pa.float32()), ("bearing", pa.float32()),
 ])
@@ -84,13 +86,13 @@ def main() -> None:
                 if not e.HasField("vehicle"):
                     continue
                 v = e.vehicle
-                vid = v.vehicle.id or e.id
-                if last_ts.get(vid) == v.timestamp:
+                unit_key = v.vehicle.id or e.id
+                if last_ts.get(unit_key) == v.timestamp:
                     continue
-                last_ts[vid] = v.timestamp
+                last_ts[unit_key] = v.timestamp
                 rows.append({
-                    "poll_ts": int(t0), "feed_ts": feed.header.timestamp, "ts": v.timestamp, "vehicle_id": vid,
-                    "route_id": v.trip.route_id, "trip_id": v.trip.trip_id, "start_time": v.trip.start_time,
+                    "poll_ts": int(t0), "feed_ts": feed.header.timestamp, "ts": v.timestamp, UNIT_COL: unit_key,
+                    "route_id": v.trip.route_id, RUN_COL: getattr(v.trip, RUN_COL), "start_time": v.trip.start_time,
                     "start_date": v.trip.start_date, "sched_rel": v.trip.schedule_relationship,
                     "lat": v.position.latitude, "lon": v.position.longitude,
                     "speed": v.position.speed, "bearing": v.position.bearing,

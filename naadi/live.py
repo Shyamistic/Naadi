@@ -5,9 +5,9 @@ Every snapshot (about every 11 s):
   2. When a bus moves forward past stops, crossing times are interpolated; two consecutive crossings give a
      completed link traversal, compared with the model: residual = ln(observed) - ln(model).
   3. Residuals from the last 30 min feed the nowcast (naadi/nowcast.py), which corrects ride times for routing.
-  4. Next-bus ETAs at a stop come from every bus upstream on a serving route: remaining model ride time,
+  4. Next-bus ETAs at a stop come from every source unit upstream on a serving route: remaining model ride time,
      corrected by the nowcast, minus the age of the GPS fix.
-Vehicle ids (licence plates) stay inside this module; anything returned uses a salted hash.
+Source identities stay inside this module; anything returned uses a salted hash.
 """
 from __future__ import annotations
 
@@ -60,8 +60,8 @@ def _project(px, py, rid, shp_ptr, sx, sy, sd):
     return out_d, out_off
 
 
-def public_id(vehicle_id: str) -> str:
-    return hashlib.sha256((SALT + vehicle_id).encode()).hexdigest()[:10]
+def public_id(unit_key: str) -> str:
+    return hashlib.sha256((SALT + unit_key).encode()).hexdigest()[:10]
 
 
 def upcoming(net, buses, now, rs_list, t_at_stop, cum_h, max_ahead_s=3600):

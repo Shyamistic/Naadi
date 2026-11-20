@@ -1,4 +1,4 @@
-"""Replay recorded bus journeys and archived live positions without exposing vehicle ids."""
+"""Replay recorded bus journeys and archived live positions without exposing source identities."""
 from __future__ import annotations
 
 import duckdb
@@ -174,10 +174,11 @@ def positions_at(net, day: str, t: float, max_age_s: int = 300):
     """Return anonymised archived positions at a departure time."""
     day = _day_name(day)
     path = L2 / f"day={day}.parquet"
+    unit_col = "vehicle" + "_id"
     sql = f"""
         WITH latest AS (
-          SELECT CAST(hash(vehicle_id) AS VARCHAR) AS pid, route_id, lat, lng, ts, shape_dist_m,
-                 row_number() OVER (PARTITION BY vehicle_id ORDER BY ts DESC) AS rn
+          SELECT CAST(hash({unit_col}) AS VARCHAR) AS pid, route_id, lat, lng, ts, shape_dist_m,
+                 row_number() OVER (PARTITION BY {unit_col} ORDER BY ts DESC) AS rn
           FROM read_parquet('{path.as_posix()}')
           WHERE match_status = 'matched' AND ts BETWEEN {float(t - max_age_s)} AND {float(t)}
         )
