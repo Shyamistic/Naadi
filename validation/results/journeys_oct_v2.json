@@ -1,0 +1,70 @@
+{
+ "naadi": {
+  "n_ok": 8619,
+  "status": {
+   "ok": 8619,
+   "boarding stop poorly captured": 554,
+   "no journey": 196,
+   "no bus observed": 1230,
+   "no bus within 3 h": 41
+  },
+  "mae_min": 18.000603172000122,
+  "median_abs_min": 8.383877567450206,
+  "mape_pct": 23.712257612934355,
+  "bias_min": -14.303015612330022,
+  "within_5min_pct": 35.24770855087597,
+  "within_10min_pct": 55.38925629423367,
+  "actual_median_min": 51.542682719230655
+ },
+ "naadi_live": {
+  "n_ok": 8595,
+  "status": {
+   "ok": 8595,
+   "boarding stop poorly captured": 575,
+   "no journey": 198,
+   "no bus observed": 1230,
+   "no bus within 3 h": 42
+  },
+  "mae_min": 16.319994399857332,
+  "median_abs_min": 6.575732743740081,
+  "mape_pct": 20.04421285915039,
+  "bias_min": -13.960214244903279,
+  "within_5min_pct": 43.54857475276324,
+  "within_10min_pct": 61.361256544502616,
+  "actual_median_min": 51.30991531610489
+ },
+ "naadi_nowcast": {
+  "n_ok": 8611,
+  "status": {
+   "ok": 8611,
+   "boarding stop poorly captured": 566,
+   "no journey": 198,
+   "no bus observed": 1224,
+   "no bus within 3 h": 41
+  },
+  "mae_min": 17.318221455892978,
+  "median_abs_min": 7.98788952032725,
+  "mape_pct": 22.832686773279548,
+  "bias_min": -13.775798593582012,
+  "within_5min_pct": 36.615956334920455,
+  "within_10min_pct": 56.83428173266751,
+  "actual_median_min": 51.44504182736079
+ },
+ "timetable": {
+  "n_ok": 8073,
+  "status": {
+   "boarding stop poorly captured": 1263,
+   "ok": 8073,
+   "no journey": 63,
+   "no bus observed": 1200,
+   "no bus within 3 h": 41
+  },
+  "mae_min": 25.288763895835228,
+  "median_abs_min": 12.69512779712677,
+  "mape_pct": 32.44418382322533,
+  "bias_min": -22.425995026778573,
+  "within_5min_pct": 25.60386473429952,
+  "within_10min_pct": 43.329617242660724,
+  "actual_median_min": 51.31037106116613
+ }
+}
