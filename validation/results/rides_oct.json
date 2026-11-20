@@ -1,0 +1,53 @@
+{
+ "history_days": [
+  "2026_10_01 to 2026_10_24"
+ ],
+ "test_days": [
+  "2026_10_26",
+  "2026_10_27",
+  "2026_10_28",
+  "2026_10_29",
+  "2026_10_30",
+  "2026_10_31"
+ ],
+ "protocol": "one bus trip, 5 to 40 consecutive stops, Naadi nowcast tuned on 25 Oct",
+ "sample_pct": 3.0,
+ "method": "Naadi history + live nowcast",
+ "with_gaps_over_10min": {
+  "n": 2876808,
+  "mean_ride_min": 32.96421097049615,
+  "mean_error_min": 4.305305586021869,
+  "within_5min_pct": 76.35671202249159,
+  "within_10min_pct": 90.39668271222827,
+  "by_length_mae_min": {
+   "5-9 stops": 2.195042278171348,
+   "10-20 stops": 3.861573579353968,
+   "21-40 stops": 6.728108427361496
+  }
+ },
+ "without_gaps_over_10min": {
+  "n": 966316,
+  "mean_ride_min": 27.15593833012092,
+  "mean_error_min": 2.653588624231218,
+  "within_5min_pct": 85.0803463877241,
+  "within_10min_pct": 97.24707031654242,
+  "by_length_mae_min": {
+   "5-9 stops": 1.5955334085275312,
+   "10-20 stops": 2.62545575314845,
+   "21-40 stops": 4.071720270131068
+  }
+ },
+ "published_comparator": {
+  "sample": "Delhi Pulse published ride sample (different sample)",
+  "mean_error_min": 4.6,
+  "mean_ride_min": 30.9,
+  "within_5min_pct": 69.0,
+  "within_10min_pct": 90.5,
+  "by_length_mae_min": {
+   "5-9 stops": 3.55,
+   "10-20 stops": 4.14,
+   "21-40 stops": 5.76
+  },
+  "source": ".agents/tasks/research-competitors-2026-11-17.md \u00a71 (Validation) and \u00a710 (idea 4)"
+ }
+}
