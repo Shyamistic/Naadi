@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from naadi.paths import MODEL, RESULTS, ROWS  # noqa: E402
 
+IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 BANDS = [30, 60, 90, 1e9]
 WAIT_EDGES_MIN = [5, 10, 20]
 PLANNER_NAMES = {"naadi": "Naadi (history)", "naadi_nowcast": "Naadi (nowcast)", "naadi_live": "Naadi (history + live)", "timetable": "Timetable planner"}
