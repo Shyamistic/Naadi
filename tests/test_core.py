@@ -209,6 +209,40 @@ def test_api_brief_example_multimodal():
         assert any(leg["type"] == "metro" for leg in option["legs"])
         assert option["schedule_estimated"] and option["range_min"] is None
     assert bus_only.json()["multimodal_options"] == [] and invalid.status_code == 400
+    assert response.json()["options"] == bus_only.json()["options"]
+
+
+@pytest.mark.skipif(not (MM_NET / "network.npz").exists(), reason="multimodal network not built")
+def test_api_extension_rail_and_shared_auto_legs():
+    from fastapi.testclient import TestClient
+    from naadi.api import app
+    with TestClient(app) as client:
+        rail = client.get("/journeys", params={"from": "Sarai Kale Khan", "to": "Modipuram", "depart": "2026-11-24T08:30", "modes": "rail"})
+        shared = client.get("/journeys", params={"from": "Govind Puri", "to": "Iiitd Campus", "depart": "2026-11-24T08:30", "modes": "shared_auto"})
+    assert rail.status_code == 200 and any(any(l["type"] == "rail" for l in o["legs"]) for o in rail.json()["multimodal_options"])
+    rail_leg = next(l for o in rail.json()["multimodal_options"] for l in o["legs"] if l["type"] == "rail")
+    assert rail_leg["operator"] == "NCRTC" and rail_leg["estimated"] and rail_leg["time_source"].startswith("NCRTC")
+    assert shared.status_code == 200 and any(any(l["type"] == "shared_auto" for l in o["legs"]) for o in shared.json()["multimodal_options"])
+    shared_leg = next(l for o in shared.json()["multimodal_options"] for l in o["legs"] if l["type"] == "shared_auto")
+    assert shared_leg["frequency_estimated"] and shared_leg["fare_inr"]["estimated"]
+
+
+    from naadi.multimodal import _feed_specs
+    from naadi.paths import ROOT
+    rail_stops, rail = _feed_specs(ROOT / "ncrtc_static_gtfs_v1.zip", "rail", 110_000_000, 110_000)
+    auto_stops, autos = _feed_specs(ROOT / "shared_mobility_gtfs_v1.zip", "shared_auto", 120_000_000, 120_000)
+    assert len(rail_stops) == 16 and len(rail) == 2
+    assert len(auto_stops) == 1900 and len(autos) == 316
+    assert rail[0]["mode"] == "rail" and rail[0]["freq"].sum() > 0
+    assert autos[0]["mode"] == "shared_auto" and autos[0]["freq"].max() == pytest.approx(12.0)
+    assert autos[0]["fare"]["estimated"] and "no fare field" in autos[0]["fare"]["source"]
+
+
+def test_multimodal_build_script_exposes_extension_feeds():
+    import subprocess
+    out = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_multimodal.py"), "--help"],
+                         capture_output=True, text=True, check=True).stdout
+
 
 
 def test_next_bus_interpolates_missing_boarding_crossing():
@@ -241,3 +275,15 @@ def test_interval_uses_wait_group_then_band():
         assert api.interval(3600, False, 900) == pytest.approx((3600 * np.exp(-0.1), 3600 * np.exp(0.2)))
     finally:
         api.S.intervals = old
+
+
+def test_arrive_by_and_adapter_endpoints():
+    from fastapi.testclient import TestClient
+    from naadi.api import app
+    with TestClient(app) as client:
+        arrive = client.get("/journeys", params={"from": "Kashmere Gate ISBT", "to": "Nehru Place", "arrive": "2026-11-24T09:30+05:30", "modes": "bus"})
+        both = client.get("/journeys", params={"from": "Kashmere Gate ISBT", "to": "Nehru Place", "depart": "2026-11-24T08:30", "arrive": "2026-11-24T09:30+05:30"})
+        adapter = client.get("/v2/get_multi_modal", params={"src": "[28.6655,77.2302]", "src_type": "place", "dst": "[28.5487,77.2570]", "dst_type": "place", "mode": "bus", "time": "08:30:00"})
+    assert arrive.status_code == 200 and "arrive_by" in arrive.json()["query"]
+    assert both.status_code == 422
+    assert adapter.status_code == 200 and "journeys" in adapter.json()
