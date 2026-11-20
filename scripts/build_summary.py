@@ -39,7 +39,9 @@ def cols(t, planner):
     wait_live = np.asarray(t.get("wait_live_s", np.zeros(len(t["planner"]))), float)[m]
     ride = np.asarray(t.get("ride_s", np.maximum(pred - wait_hist - wait_live - walk, 0)), float)[m]
     return {"pred": pred, "act": act, "wait": wait_hist, "wait_hist": wait_hist, "wait_live": wait_live, "walk": walk,
-            "ride": ride, "day": np.asarray(t["day"])[m], "slot": np.asarray(t["slot"])[m],
+            "ride": ride, "act_wait": np.asarray(t.get("act_wait_s", np.full(len(t["planner"]), np.nan)), float)[m],
+            "act_ride": np.asarray(t.get("act_ride_s", np.full(len(t["planner"]), np.nan)), float)[m],
+            "day": np.asarray(t["day"])[m], "slot": np.asarray(t["slot"])[m],
             "od_id": np.asarray(t["od_id"])[m], "wait1_source": np.asarray(t.get("wait1_source", ["history"] * len(t["planner"])))[m]}
 
 
@@ -155,6 +157,12 @@ def main() -> None:
             prev = band
         covered = sum(int(np.sum((residual[m] >= lo) & (residual[m] <= hi))) for m, lo, hi in coverage_mask)
         n_test = int(np.sum(test_sel))
+        coverage_by_daytype = {}
+        for daytype, selector in (("weekday", np.array([dt.date.fromisoformat(str(x)).weekday() < 5 for x in c["day"]])),
+                                  ("weekend", np.array([dt.date.fromisoformat(str(x)).weekday() >= 5 for x in c["day"]]))):
+            dm = test_sel & selector
+            hits = sum(int(np.sum((residual[m & selector] >= lo) & (residual[m & selector] <= hi))) for m, lo, hi in coverage_mask)
+            coverage_by_daytype[daytype] = hits / max(1, int(np.sum(dm)))
         widths = []
         for value, wc in zip(cal_pred[test_sel] / 60, wait_class[test_sel]):
             band_spec = next(x for x in band_specs if value <= x["max_min"])
@@ -163,7 +171,7 @@ def main() -> None:
         intervals["live" if planner == "naadi_live" else ("history" if planner == "naadi" else planner)] = {
             "bands": band_specs,
             "wait_edges_min": WAIT_EDGES_MIN, "groups": groups, "nominal": 0.8, "test_coverage": covered / max(1, n_test),
-            "n_test": n_test, "coverage_by_daytype": {}, "median_width_min": float(np.median(widths) / 60 if widths else 0.0)}
+            "n_test": n_test, "coverage_by_daytype": coverage_by_daytype, "median_width_min": float(np.median(widths) / 60 if widths else 0.0)}
         report[planner] = {"raw": stats(c["pred"][test_sel], c["act"][test_sel]), "calibrated": stats(cal_pred[test_sel], c["act"][test_sel]),
                           "by_slot_mae_min": {s: float(np.mean(np.abs(cal_pred[test_sel & (c["slot"] == s)] - c["act"][test_sel & (c["slot"] == s)])) / 60) for s in sorted(set(c["slot"]))}}
 
@@ -184,8 +192,8 @@ def main() -> None:
     components = {}
     for p in planners:
         c, pred, test_sel = cal_predictions[p]
-        components[p] = {"ride_mae_min": float(np.mean(np.abs(pred[test_sel] - c["act"][test_sel])) / 60),
-                         "wait_mae_min": float(np.mean(np.abs((pred[test_sel] - c["walk"][test_sel] - c["ride"][test_sel]) - (c["act"][test_sel] - c["walk"][test_sel] - c["ride"][test_sel])) / 60))}
+        components[p] = {"ride_mae_min": float(np.nanmean(np.abs(ar * c["ride"][test_sel] - c["act_ride"][test_sel])) / 60),
+                         "wait_mae_min": float(np.nanmean(np.abs((aw * c["wait_hist"][test_sel] + cw * c["wait_live"][test_sel]) - c["act_wait"][test_sel])) / 60)}
     eta_path = RESULTS / "eta_oct.json"
     eta = json.loads(eta_path.read_text()) if eta_path.exists() else {"n_cases": 0, "raw": {}}
     eta_rows = sorted(((NAMES.get(k, k), v.get("mae_s", 0)) for k, v in eta.get("raw", {}).items()), key=lambda x: -x[1])
