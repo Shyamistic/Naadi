@@ -1,0 +1,1 @@
+import { useT } from "../../i18n/I18nProvider";export default function AccuracyPage(){const {t}=useT();return <><h1>{t("accuracy.title")}</h1><p>Measured against observed trips and timetable journeys.</p></>}
