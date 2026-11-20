@@ -54,16 +54,20 @@ export function MapHost({ children }: { children?: ReactNode }) {
       instance = new maplibregl.Map({ container: container.current, style: buildStyle(settings.theme, language), center: [77.209, 28.6139], zoom: 10.6, minZoom: 8, maxZoom: 18.5, maxPitch: 60, maxBounds: [[75.8, 27.6], [78.6, 29.9]], renderWorldCopies: false, attributionControl: false, transformRequest: (url, resourceType) => resourceType === "Glyphs" ? glyphRequest(url) : undefined });
       mapRef.current = instance; setMap(instance); instance.resize();
       const reveal = () => { setReady(true); window.__naadiSplash?.setStatus("map"); window.__naadiSplash?.hide(); };
-      instance.on("load", reveal);
-      const readiness = window.setInterval(() => { if (instance?.isStyleLoaded()) { reveal(); window.clearInterval(readiness); } }, 100);
-      const fallback = window.setTimeout(reveal, 1500);
+      const revealWhenIdle = () => {
+        if (!instance?.isStyleLoaded() || !instance.areTilesLoaded() || !instance.isSourceLoaded("omt")) return;
+        reveal();
+      };
+      instance.on("load", revealWhenIdle);
+      instance.on("idle", revealWhenIdle);
+      const readiness = window.setInterval(() => { revealWhenIdle(); if (instance?.isStyleLoaded() && instance.isSourceLoaded("omt") && instance.areTilesLoaded()) window.clearInterval(readiness); }, 100);
       instance.on("style.load", () => setStyleVersion((version) => version + 1));
       instance.on("move", () => setCamera({ zoom: instance!.getZoom(), pitch: instance!.getPitch(), bearing: instance!.getBearing(), center: [instance!.getCenter().lng, instance!.getCenter().lat] }));
       instance.on("click", (event) => pickers.current.forEach((callback) => callback([event.lngLat.lng, event.lngLat.lat])));
       if (language === "hi") { window.setTimeout(() => { if (pluginApi.getRTLTextPluginStatus?.() === "error" && mapRef.current === instance) instance.setStyle(buildStyle(settings.theme, "en")); }, 5000); instance.on("error", (event) => { if (String(event.error?.message || "").toLowerCase().includes("rtl") && mapRef.current === instance) instance.setStyle(buildStyle(settings.theme, "en")); }); }
       const resize = new ResizeObserver(() => instance?.resize()); resize.observe(container.current); (instance as MapInstance & { __naadiResize?: ResizeObserver }).__naadiResize = resize;
       (window as Window & { __naadiMap?: MapInstance }).__naadiMap = instance;
-      return () => { window.clearInterval(readiness); window.clearTimeout(fallback); resize.disconnect(); };
+      return () => { window.clearInterval(readiness); resize.disconnect(); };
     })();
     return () => { cancelled = true; const resize = (instance as (MapInstance & { __naadiResize?: ResizeObserver }) | undefined)?.__naadiResize; resize?.disconnect(); instance?.remove(); delete (window as Window & { __naadiMap?: MapInstance }).__naadiMap; mapRef.current = null; setMap(null); setReady(false); };
   }, []);
