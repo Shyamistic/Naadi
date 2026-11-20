@@ -29,6 +29,7 @@ from .nowcast import NowcastParams
 from .paths import DATA, MODEL, RESULTS, ROOT
 from .router import IST_S, Planner, _hw, _interp
 from .strategy import plan_options, refine, route_label
+from .trails import router as trails_router
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 BOX = (28.15, 29.40, 76.55, 77.75)  # Delhi NCR bounds accepted for coordinates
 VERSION = "naadi-1.0 (history: Oct 2026, 31 days; model: LightGBM link times + live nowcast)"
@@ -132,6 +133,7 @@ app = FastAPI(title="Naadi API", version="1.0",
                           "Times come from 31 days of real bus GPS (Oct 2026) plus a live nowcast. " + ATTRIBUTION)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.include_router(trails_router)
 _hits: dict[str, deque] = defaultdict(deque)
 
 
