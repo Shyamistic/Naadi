@@ -9,6 +9,7 @@ Output: validation/results/eta_calculator_nov.json and .md (aggregates only).
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -69,6 +70,7 @@ def cases(con, day: str, sample_pct: float) -> dict:
 
 
 def main() -> None:
+    argparse.ArgumentParser(description="Score Naadi against the ETA Calculator logs.").parse_args()
     con = duckdb.connect()
     con.execute(f"SET TimeZone='UTC'; SET memory_limit='3GB'; SET threads=6; SET temp_directory='{TMP.as_posix()}'")
     days = sorted(p.stem.split("=")[1] for p in L2.glob("day=2026_11_*.parquet"))

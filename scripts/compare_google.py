@@ -11,6 +11,7 @@ validation/results/google_nov.json and .md.
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import datetime as dt
 import json
@@ -97,6 +98,7 @@ def google_journey(net: Network, by_name: dict, route: dict, t_dep: float):
 
 
 def main() -> None:
+    argparse.ArgumentParser(description="Compare Naadi with Google Maps on recorded days.").parse_args()
     sync()
     net = Network(MODEL / "network_prod")
     pl = Planner(net, "naadi")
