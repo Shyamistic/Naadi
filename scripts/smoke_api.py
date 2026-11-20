@@ -91,17 +91,29 @@ def main() -> None:
         ("brief", {"from": "Kashmere Gate ISBT", "to": "Nehru Place", "depart": "2026-11-24T08:30"}, ("metro",)),
         ("namo", {"from": "Sarai Kale Khan", "to": "Modipuram", "depart": "2026-11-24T08:30", "modes": "rail"}, ("rail",)),
         ("shared first mile", {"from": "Govind Puri", "to": "Iiitd Campus", "depart": "2026-11-24T08:30", "modes": "shared_auto"}, ("shared_auto",)),
+        ("arrive-by", {"from": "Kashmere Gate ISBT", "to": "Nehru Place", "arrive": "2026-11-24T09:30+05:30", "modes": "bus"}, ()),
     ]
     for name, params, expected_types in queries:
         t0 = time.time()
         body = get_journey(params)
-        print(f"== {name} {params['depart']}: in {time.time() - t0:.2f}s, live={body.get('query', {}).get('live')}")
+        print(f"== {name}: in {time.time() - t0:.2f}s, live={body.get('query', {}).get('live')} arrive_by={body.get('query', {}).get('arrive_by')}")
+        if name == "arrive-by" and "arrive_by" not in body.get("query", {}):
+            fail("arrive-by response missing query.arrive_by")
         for i, option in enumerate(body.get("options", [])):
             show(option, i)
         for i, option in enumerate(body.get("multimodal_options", [])):
             print(f"  multimodal #{i}:")
             show(option, i)
         check_options(body, expected_types)
+    adapter_params = {"src": "[28.6655,77.2302]", "src_type": "place", "dst": "[28.5487,77.2570]",
+                      "dst_type": "place", "mode": "bus", "time": "08:30:00"}
+    try:
+        adapter_response = requests.get(f"{BASE}/v2/get_multi_modal", params=adapter_params, timeout=60)
+        print("== adapter: HTTP", adapter_response.status_code)
+        if adapter_response.status_code != 200 or "journeys" not in adapter_response.json():
+            fail("adapter response missing journeys")
+    except requests.RequestException as exc:
+        fail(f"adapter request failed: {exc}")
     bus_body = get_journey({"from": "Kashmere Gate ISBT", "to": "Nehru Place", "depart": "2026-11-24T08:30", "modes": "bus"})
     if bus_body.get("multimodal_options") != []:
         fail("modes=bus returned multimodal options")
