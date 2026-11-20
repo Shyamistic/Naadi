@@ -133,7 +133,7 @@ def main() -> None:
         cal_predictions[planner] = (c, cal_pred, test_sel)
         residual = np.log(np.maximum(c["act"], 1e-6) / np.maximum(cal_pred, 1e-6))
         wait_class = np.digitize(aw * c["wait_hist"] / 60, WAIT_EDGES_MIN)
-        groups, prev = [], 0
+        groups, band_specs, prev = [], [], 0
         coverage_mask = []
         for band in BANDS:
             band_mask = (cal_pred / 60 > prev) & (cal_pred / 60 <= band)
@@ -141,28 +141,27 @@ def main() -> None:
             band_test = band_mask & test_sel
             band_r = residual[band_cf]
             band_lo, band_hi = conformal(band_r if len(band_r) >= 30 else residual[cf_sel])
-            group_hits = 0
-            group_n = 0
+            band_specs.append({"max_min": band if band < 1e9 else 9999, "q_lo": band_lo, "q_hi": band_hi})
             for wc in range(4):
                 sel_cf = band_cf & (wait_class == wc)
                 sel_test = band_test & (wait_class == wc)
                 source = residual[sel_cf] if np.sum(sel_cf) >= 50 else residual[band_cf]
                 qlo, qhi = conformal(source if len(source) else residual[cf_sel])
-                n_test = int(np.sum(sel_test))
-                group_n += n_test
-                group_hits += int(np.sum((residual[sel_test] >= qlo) & (residual[sel_test] <= qhi)))
                 groups.append({"max_min": band if band < 1e9 else 9999, "wait_class": wc, "q_lo": qlo, "q_hi": qhi,
                                "n_conformal": int(np.sum(sel_cf))})
             coverage_mask.extend([(band_test, band_lo, band_hi)])
             prev = band
         covered = sum(int(np.sum((residual[m] >= lo) & (residual[m] <= hi))) for m, lo, hi in coverage_mask)
         n_test = int(np.sum(test_sel))
-        widths = cal_pred[test_sel] * (np.exp(np.array([g["q_hi"] for g in groups])) - np.exp(np.array([g["q_lo"] for g in groups])))
+        widths = []
+        for value, wc in zip(cal_pred[test_sel] / 60, wait_class[test_sel]):
+            band_spec = next(x for x in band_specs if value <= x["max_min"])
+            group = next(x for x in groups if x["max_min"] == band_spec["max_min"] and x["wait_class"] == int(wc))
+            widths.append(value * 60 * (math.exp(group["q_hi"]) - math.exp(group["q_lo"])))
         intervals["live" if planner == "naadi_live" else ("history" if planner == "naadi" else planner)] = {
-            "bands": [{"max_min": b if b < 1e9 else 9999, "q_lo": conformal(residual[(cal_pred / 60 > (BANDS[i - 1] if i else 0)) & (cal_pred / 60 <= b) & cf_sel])[0] if np.any((cal_pred / 60 > (BANDS[i - 1] if i else 0)) & (cal_pred / 60 <= b) & cf_sel) else 0.0,
-                        "q_hi": conformal(residual[(cal_pred / 60 > (BANDS[i - 1] if i else 0)) & (cal_pred / 60 <= b) & cf_sel])[1] if np.any((cal_pred / 60 > (BANDS[i - 1] if i else 0)) & (cal_pred / 60 <= b) & cf_sel) else 0.0} for i, b in enumerate(BANDS)],
+            "bands": band_specs,
             "wait_edges_min": WAIT_EDGES_MIN, "groups": groups, "nominal": 0.8, "test_coverage": covered / max(1, n_test),
-            "n_test": n_test, "coverage_by_daytype": {}, "median_width_min": float(np.median(widths) if len(widths) else 0.0)}
+            "n_test": n_test, "coverage_by_daytype": {}, "median_width_min": float(np.median(widths) / 60 if widths else 0.0)}
         report[planner] = {"raw": stats(c["pred"][test_sel], c["act"][test_sel]), "calibrated": stats(cal_pred[test_sel], c["act"][test_sel]),
                           "by_slot_mae_min": {s: float(np.mean(np.abs(cal_pred[test_sel & (c["slot"] == s)] - c["act"][test_sel & (c["slot"] == s)])) / 60) for s in sorted(set(c["slot"]))}}
 
@@ -170,16 +169,16 @@ def main() -> None:
     (MODEL / "calibration_v2.json").write_text(json.dumps(model_out, indent=1), encoding="utf-8")
     (MODEL / "intervals_v2.json").write_text(json.dumps(intervals, indent=1), encoding="utf-8")
 
-    common = []
-    by_key = {(d, s, o): i for i, (d, s, o) in enumerate(zip(t["day"], t["slot"], t["od_id"]))}
-    for key, i in by_key.items():
-        if all(t["status"][i] == "ok" for _ in planners):
-            common.append(key)
+    common_keys = set()
+    for p in planners:
+        c, _, test_sel = cal_predictions[p]
+        keys = {(d, s, o) for d, s, o, ok in zip(c["day"], c["slot"], c["od_id"], test_sel) if ok}
+        common_keys = keys if not common_keys else common_keys & keys
     common_report = {}
     for p in planners:
         c, pred, test_sel = cal_predictions[p]
-        mask = np.array([test_sel[j] and (days[by_key[(days[j], t["slot"][j], t["od_id"][j])]] if False else True) for j in range(len(c["act"]))])
-        common_report[p] = stats(pred[test_sel], c["act"][test_sel])
+        mask = np.array([ok and (d, s, o) in common_keys for d, s, o, ok in zip(c["day"], c["slot"], c["od_id"], test_sel)])
+        common_report[p] = stats(pred[mask], c["act"][mask])
     components = {}
     for p in planners:
         c, pred, test_sel = cal_predictions[p]
