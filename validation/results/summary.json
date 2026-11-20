@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-20T20:34+05:30",
+ "updated": "2026-11-20T20:45+05:30",
  "eta": {
   "caption": "Mean absolute error on held-out ETA cases (1,987,389 predictions). Lower is better.",
   "rows": [
@@ -222,20 +222,20 @@
   },
   "components": {
    "naadi": {
-    "ride_mae_min": 17.90924429622344,
-    "wait_mae_min": 17.90924429622344
+    "ride_mae_min": 7.4490747502416355,
+    "wait_mae_min": 15.365583429905938
    },
    "naadi_nowcast": {
-    "ride_mae_min": 17.272522229896655,
-    "wait_mae_min": 17.272522229896655
+    "ride_mae_min": 6.889156077466013,
+    "wait_mae_min": 15.491830463458351
    },
    "naadi_live": {
-    "ride_mae_min": 15.516839817528496,
-    "wait_mae_min": 15.516839817528494
+    "ride_mae_min": 6.850256835222125,
+    "wait_mae_min": 12.60499637128891
    },
    "timetable": {
-    "ride_mae_min": 22.8878773159314,
-    "wait_mae_min": 22.887877315931398
+    "ride_mae_min": 9.8299035641012,
+    "wait_mae_min": 18.005308201162556
    }
   },
   "legacy": {
@@ -438,7 +438,10 @@
    "nominal": 0.8,
    "test_coverage": 0.7752560199280376,
    "n_test": 3613,
-   "coverage_by_daytype": {},
+   "coverage_by_daytype": {
+    "weekday": 0.7443609022556391,
+    "weekend": 0.8359310910582445
+   },
    "median_width_min": 47.180060283162234
   },
   "naadi_nowcast": {
@@ -586,7 +589,10 @@
    "nominal": 0.8,
    "test_coverage": 0.7817526344980588,
    "n_test": 3606,
-   "coverage_by_daytype": {},
+   "coverage_by_daytype": {
+    "weekday": 0.7601506906655504,
+    "weekend": 0.8241577649958916
+   },
    "median_width_min": 44.516941082254306
   },
   "live": {
@@ -734,7 +740,10 @@
    "nominal": 0.8,
    "test_coverage": 0.7809894385769872,
    "n_test": 3598,
-   "coverage_by_daytype": {},
+   "coverage_by_daytype": {
+    "weekday": 0.7536780159730979,
+    "weekend": 0.8342904019688269
+   },
    "median_width_min": 39.98065528754232
   },
   "timetable": {
@@ -882,7 +891,10 @@
    "nominal": 0.8,
    "test_coverage": 0.7899584076054664,
    "n_test": 3366,
-   "coverage_by_daytype": {},
+   "coverage_by_daytype": {
+    "weekday": 0.7862254025044723,
+    "weekend": 0.7973451327433628
+   },
    "median_width_min": 64.85290349789862
   }
  },

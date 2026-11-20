@@ -2,12 +2,12 @@
 
 Held-out protocol: factors fitted on 25-26 Oct; grouped ranges calibrated on 27-28 Oct; test metrics on 29-31 Oct.
 
-| Planner | Raw MAE (min) | Calibrated MAE (min) | Test n |
-|---|---:|---:|---:|
-| Naadi (history) | 19.6 | 17.9 | 3613 |
-| Naadi (nowcast) | 19.0 | 17.3 | 3606 |
-| Naadi (history + live) | 17.7 | 15.5 | 3598 |
-| Timetable planner | 26.5 | 22.9 | 3366 |
+| Planner | Old MAE (min) | V2 raw MAE (min) | V2 calibrated MAE (min) | Test n |
+|---|---:|---:|---:|---:|
+| Naadi (history) | 18.6 | 19.6 | 17.9 | 3613 |
+| Naadi (nowcast) | — | 19.0 | 17.3 | 3606 |
+| Naadi (history + live) | 17.9 | 17.7 | 15.5 | 3598 |
+| Timetable planner | 25.9 | 26.5 | 22.9 | 3366 |
 
 ## Calibration factors
 
