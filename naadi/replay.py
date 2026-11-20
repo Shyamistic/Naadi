@@ -10,6 +10,11 @@ from .paths import L2, MODEL, WORK
 NEAR = 3
 
 
+def weekend(ts):
+    d = np.floor((np.asarray(ts) + 19800) / 86400).astype(np.int64)
+    return (((d + 3) % 7) >= 5).astype(np.int64)
+
+
 def _day_name(day: str) -> str:
     return day.replace("-", "_")
 
@@ -145,7 +150,7 @@ class LiveDay:
         li = grid.index(L["route_id"], L["ord"])
         m = li >= 0
         li, t, tt = li[m], L["t"][m], L["tt_s"][m]
-        res = np.log(tt) - grid.log_tt("gbm", li, (((np.floor((t + IST_S) / 86400).astype(np.int64) + 3) % 7) >= 5).astype(np.int64), t)
+        res = np.log(tt) - grid.log_tt("gbm", li, weekend(t), t)
         tref = float(t.min()) - 7200
         self.links = ResidualIndex(li, t + tt, res, tref)
         self.cells = ResidualIndex(self.cell[li], t + tt, res, tref)

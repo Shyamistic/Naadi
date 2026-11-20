@@ -45,7 +45,12 @@ def cols(t, planner):
 def fit(c, sel, live=False):
     """Fit wait and ride factors; retain the two-value API for existing callers."""
     best = (np.inf, 1.0, 1.0, 1.0)
-    walk, wh, wl, ride, act = (c[k][sel] for k in ("walk", "wait_hist", "wait_live", "ride", "act"))
+    walk = c["walk"]
+    wh = c.get("wait_hist", c.get("wait"))
+    wl = c.get("wait_live", np.zeros_like(wh))
+    ride = c["ride"]
+    act = c["act"]
+    walk, wh, wl, ride, act = (x[sel] for x in (walk, wh, wl, ride, act))
     cs = np.arange(0.8, 1.601, 0.05) if live else [1.0]
     for a in np.arange(0.3, 3.001, 0.05):
         for b in np.arange(0.8, 1.601, 0.01):
