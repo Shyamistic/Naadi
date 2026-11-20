@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 
+import duckdb
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -82,6 +83,8 @@ def main() -> None:
     ap.add_argument("--tables", default="oct01_24")
     ap.add_argument("--limit-od", type=int, default=None)
     a = ap.parse_args()
+    duckdb.sql("SET memory_limit='1GB'")
+    duckdb.sql("SET threads=4")
 
     net = Network(MODEL / f"network_{a.network}")
     planners = {"naadi": Planner(net, "naadi"), "timetable": Planner(net, "timetable")}
