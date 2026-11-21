@@ -16,6 +16,8 @@ import time
 from pathlib import Path
 
 import boto3
+from boto3.s3.transfer import TransferConfig
+from botocore.config import Config
 
 ROOT = Path(__file__).resolve().parents[1]
 REGION = "ap-south-1"
@@ -30,10 +32,14 @@ MODEL_FILES = ["data/processed/model/network_prod/network.npz", "data/processed/
                "data/processed/model/walk_v1/access.npz", "data/processed/model/fares_v1/fare_table.parquet",
                "validation/results/eta_oct.json", "validation/results/summary.json"]
 TRAIL_ROOT = ROOT / "data" / "processed" / "model" / "trails_v1"
+# Uploads run from a laptop on Wi-Fi (21 Nov: a 180 MB upload failed with EndpointConnectionError).
+# Retry harder than the defaults and use fewer parallel connections.
+AWS_CONFIG = Config(retries={"max_attempts": 10, "mode": "standard"}, connect_timeout=20, read_timeout=120)
+UPLOAD = TransferConfig(multipart_chunksize=16 * 1024 * 1024, max_concurrency=4)
 
 
 def ssm_run(s, cmds, timeout=900):
-    ssm = s.client("ssm")
+    ssm = s.client("ssm", config=AWS_CONFIG)
     cid = ssm.send_command(InstanceIds=[IID], DocumentName="AWS-RunShellScript",
                            Parameters={"commands": cmds, "executionTimeout": [str(timeout)]})["Command"]["CommandId"]
     t0 = time.time()
@@ -51,7 +57,7 @@ def main() -> None:
     s = boto3.Session(profile_name="naadi", region_name=REGION)
     acct = s.client("sts").get_caller_identity()["Account"]
     bucket = f"naadi-data-{acct}"
-    ec2, s3 = s.client("ec2"), s.client("s3")
+    ec2, s3 = s.client("ec2", config=AWS_CONFIG), s.client("s3", config=AWS_CONFIG)
     inst = ec2.describe_instances(InstanceIds=[IID])["Reservations"][0]["Instances"][0]
     addrs = ec2.describe_addresses(Filters=[{"Name": "tag:Project", "Values": ["naadi"]}])["Addresses"]
     if not addrs:
@@ -74,11 +80,11 @@ def main() -> None:
     print("host", host)
     files = [p for p in (ROOT / "naadi").glob("*.py")] + [ROOT / "scripts" / "record_feed.py", ROOT / "infra" / "requirements-api.txt"]
     for f in files:
-        s3.upload_file(str(f), bucket, f"code/{f.relative_to(ROOT).as_posix()}")
+        s3.upload_file(str(f), bucket, f"code/{f.relative_to(ROOT).as_posix()}", Config=UPLOAD)
     for f in (ROOT / "web" / "dist").rglob("*"):
         if f.is_file():
             ct = {".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml"}.get(f.suffix, "application/octet-stream")
-            s3.upload_file(str(f), bucket, f"web/{f.relative_to(ROOT / 'web' / 'dist').as_posix()}", ExtraArgs={"ContentType": ct})
+            s3.upload_file(str(f), bucket, f"web/{f.relative_to(ROOT / 'web' / 'dist').as_posix()}", ExtraArgs={"ContentType": ct}, Config=UPLOAD)
     if not a.code_only:
         artefacts = [ROOT / rel for rel in MODEL_FILES]
         if TRAIL_ROOT.exists():
@@ -86,7 +92,7 @@ def main() -> None:
         for p in artefacts:
             if p.exists():
                 rel = p.relative_to(ROOT).as_posix()
-                s3.upload_file(str(p), bucket, f"artefacts/{rel}")
+                s3.upload_file(str(p), bucket, f"artefacts/{rel}", Config=UPLOAD)
             else:
                 print("missing (skipped):", p.relative_to(ROOT).as_posix())
     caddyfile = f"""{host} {{
@@ -154,9 +160,9 @@ WantedBy=multi-user.target
         "systemctl restart naadi-feed",
         "systemctl enable --now naadi-api caddy",
         "systemctl restart naadi-api",
-        "ok=0; for i in $(seq 1 24); do if curl -fsS http://127.0.0.1:8000/health | grep -q '\"status\"[[:space:]]*:[[:space:]]*\"ok\"'; then ok=1; break; fi; sleep 5; done; if [ \"$ok\" -ne 1 ]; then echo 'Naadi health check failed' >&2; exit 1; fi",
+        "ok=0; for i in $(seq 1 24); do if curl -fsS --max-time 10 http://127.0.0.1:8000/health | grep -q '\"status\"[[:space:]]*:[[:space:]]*\"ok\"'; then ok=1; break; fi; sleep 5; done; if [ \"$ok\" -ne 1 ]; then echo 'Naadi health check failed' >&2; exit 1; fi",
         "systemctl reload caddy || systemctl restart caddy",
-        "curl -s http://127.0.0.1:8000/health | head -c 400; echo",
+        "curl -s --max-time 10 http://127.0.0.1:8000/health | head -c 400; echo",
         "ls -la /opt/naadi/data/live/ | tail -2",
         "free -m | head -2",
     ]
@@ -165,6 +171,8 @@ WantedBy=multi-user.target
     print(r["StandardOutputContent"][-2500:])
     print(r["StandardErrorContent"][-1500:].encode("ascii", "replace").decode())
     print(f"web: https://{host}/   api: https://{host}/api/docs")
+    if r["Status"] != "Success":  # the server step failed (and rolled back): tell the caller
+        raise SystemExit(f"server step ended with status {r['Status']}")
 
 
 if __name__ == "__main__":
