@@ -1,13 +1,24 @@
 import { Link } from "react-router";
+import { useAbout } from "../../api/queries";
 import { useSettings } from "../../settings/SettingsProvider";
 import { useT } from "../../i18n/I18nProvider";
 import css from "./pages.module.css";
 
 const feedback = "https://github.com/Shyamistic/Naadi/issues";
 
+// Model version and data sources, from GET /about. The rest of the About page doesn't depend on it.
+function VersionInfo() {
+  const { t } = useT();
+  const about = useAbout();
+  if (about.isPending) return <p className={css.updated} aria-busy="true" data-testid="about-version-loading">{t("pages.versionLoading")}</p>;
+  if (about.isError || !about.data) return <p className={css.updated} data-testid="about-version-error">{t("pages.versionError")}</p>;
+  const { version, attribution, licence_note: licence } = about.data;
+  return <dl className={css.facts} data-testid="about-version">{version && <><dt>{t("pages.version")}</dt><dd>{version}</dd></>}{attribution && <><dt>{t("pages.dataSources")}</dt><dd>{attribution}</dd></>}{licence && <><dt>{t("pages.licence")}</dt><dd>{licence}</dd></>}</dl>;
+}
+
 export function AboutPage() {
   const { t } = useT();
-  return <article className={css.page}><h1>{t("nav.about")}</h1><p>{t("pages.aboutIntro")}</p><h2 id="data">{t("pages.dataPrivacy")}</h2><p>{t("pages.aboutPrivacy")}</p><p>{t("pages.photonPrivacy")}</p><p>{t("pages.credits")}</p><h2 id="accessibility">{t("pages.accessibility")}</h2><p>{t("pages.accessibilityText")}</p><h2 id="terms">{t("pages.terms")}</h2><p>{t("pages.termsText")}</p><p className={css.links}><Link to="/help">{t("pages.helpLink")}</Link> · <a href={feedback} target="_blank" rel="noopener noreferrer">{t("pages.feedback")}</a></p><p className={css.updated}>{t("pages.resultsUpdated")}</p></article>;
+  return <article className={css.page}><h1>{t("nav.about")}</h1><p>{t("pages.aboutIntro")}</p><h2 id="version">{t("pages.versionTitle")}</h2><VersionInfo /><h2 id="data">{t("pages.dataPrivacy")}</h2><p>{t("pages.aboutPrivacy")}</p><p>{t("pages.photonPrivacy")}</p><p>{t("pages.credits")}</p><h2 id="accessibility">{t("pages.accessibility")}</h2><p>{t("pages.accessibilityText")}</p><h2 id="terms">{t("pages.terms")}</h2><p>{t("pages.termsText")}</p><p className={css.links}><Link to="/help">{t("pages.helpLink")}</Link> · <Link to="/accuracy" data-testid="about-accuracy">{t("pages.accuracyLink")}</Link> · <a href={feedback} target="_blank" rel="noopener noreferrer">{t("pages.feedback")}</a></p></article>;
 }
 
 export function HelpPage() {

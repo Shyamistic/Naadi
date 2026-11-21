@@ -119,5 +119,7 @@
    "within_10min_pct": 42.77659441172786,
    "actual_median_min": 51.33104543685913
   }
- }
+ },
+ "walking": "straight_line",
+ "walking_note": "Replayed 20 Nov 2026 (B3), before street-network walking (walk_v1) was wired into the planner; walking was straight-line distance x 1.35. Re-run with the shipped planner pending."
 }

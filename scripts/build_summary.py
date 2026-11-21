@@ -19,7 +19,33 @@ IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 BANDS = [30, 60, 90, 1e9]
 WAIT_EDGES_MIN = [5, 10, 20]
 PLANNER_NAMES = {"naadi": "Naadi (history)", "naadi_nowcast": "Naadi (nowcast)", "naadi_live": "Naadi (history + live)", "timetable": "Timetable planner"}
-NAMES = {"timetable": "Official timetable", "naadi": "Naadi history", "naadi_live": "Naadi live"}
+# English labels for the ETA methods in eta_oct.json. The Accuracy page translates the codes itself.
+METHOD_LABELS = {"naadi": "Naadi (history + live nowcast)", "live_only": "Recent live buses only",
+                 "lnkf": "Log-normal Kalman filter (published method)", "gbm": "LightGBM history only",
+                 "eb": "Empirical-Bayes history", "ha": "Historical average by stretch and hour",
+                 "city": "City-wide speed curve", "timetable": "Published timetable", "persist": "The bus's own recent speed"}
+
+
+def eta_summary(eta: dict) -> dict:
+    """The held-out ETA test as the Accuracy page shows it: method codes with labels, Naadi's detail and its lead."""
+    raw = eta.get("raw", {})
+    rows = sorted(((k, v.get("mae_s", 0)) for k, v in raw.items()), key=lambda x: -x[1])
+    by_band: dict = {}
+    for method in ("naadi", "timetable"):
+        for band, s in eta.get("by_band", {}).get(method, {}).items():
+            if isinstance(s, dict) and "mae_s" in s:
+                by_band.setdefault(band, {})[method] = s["mae_s"]
+    naadi = raw.get("naadi", {})
+    out = {"caption": f"Mean absolute error on held-out ETA cases ({eta.get('n_cases', 0):,} predictions). Lower is better.",
+           "n": eta.get("n_cases", 0), "test_days": eta.get("test_days", []), "tuning_days": eta.get("tuning_day", []),
+           "rows": rows, "labels": {k: METHOD_LABELS.get(k, k) for k, _ in rows},
+           "naadi": {k: naadi[k] for k in ("within_2min_pct", "bias_s", "rmse_s", "p90_abs_s", "mape_pct") if k in naadi},
+           "by_band": by_band}
+    best = eta.get("best_baseline")
+    lead = eta.get("significance", {}).get(f"naadi_vs_{best}") if best else None
+    if isinstance(lead, dict):
+        out["best_baseline"], out["significance"] = best, lead
+    return out
 
 
 def conformal(r, lo=0.1, hi=0.9):
@@ -196,7 +222,6 @@ def main() -> None:
                          "wait_mae_min": float(np.nanmean(np.abs((aw * c["wait_hist"][test_sel] + cw * c["wait_live"][test_sel]) - c["act_wait"][test_sel])) / 60)}
     eta_path = RESULTS / "eta_oct.json"
     eta = json.loads(eta_path.read_text()) if eta_path.exists() else {"n_cases": 0, "raw": {}}
-    eta_rows = sorted(((NAMES.get(k, k), v.get("mae_s", 0)) for k, v in eta.get("raw", {}).items()), key=lambda x: -x[1])
     live_name = "naadi_live" if "naadi_live" in report else "naadi"
     lines = [f"Door-to-door replay on held-out test days {', '.join(test_days)}: Naadi live calibrated MAE {report[live_name]['calibrated'].get('mae_min', 0):.1f} min; timetable {report['timetable']['calibrated'].get('mae_min', 0):.1f} min."]
     for key in ("history", "live"):
@@ -206,9 +231,20 @@ def main() -> None:
     old = RESULTS / "journeys_oct.json"
     if old.exists() and a.journeys != "journeys_oct":
         legacy = json.loads(old.read_text())
-    out = {"updated": dt.datetime.now(IST).isoformat(timespec="minutes"), "eta": {"caption": f"Mean absolute error on held-out ETA cases ({eta.get('n_cases', 0):,} predictions). Lower is better.", "rows": eta_rows},
+    out = {"updated": dt.datetime.now(IST).isoformat(timespec="minutes"), "eta": eta_summary(eta),
            "journeys": {"lines": lines, "report": report, "test_days": test_days, "common": common_report, "components": components},
            "intervals": intervals, "calibration": calibration}
+    # Which walking model the replayed plans used, if the evaluation recorded it ("street" or "straight_line").
+    journey_json = RESULTS / f"{a.journeys}.json"
+    if journey_json.exists():
+        walking = json.loads(journey_json.read_text()).get("walking")
+        if walking:
+            out["journeys"]["walking"] = walking
+    rides = RESULTS / "rides_oct.json"
+    if rides.exists():
+        ride_table = json.loads(rides.read_text())
+        ride_table.pop("published_comparator", None)  # other entries' published figures belong in the validation report
+        out["rides"] = ride_table
     if legacy is not None:
         out["journeys"]["legacy"] = legacy
     calc = RESULTS / "eta_calculator_nov.json"
