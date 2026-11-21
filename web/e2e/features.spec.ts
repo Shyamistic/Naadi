@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { mockApi } from './support/mockApi';
 
-const screens: Array<[string, string]> = [['/','Plan'], ['/live','Live buses'], ['/speeds','Road speeds'], ['/accuracy','Accuracy'], ['/about','About Naadi'], ['/help','Help'], ['/settings','Settings'], ['/stop/9729','Bus stop'], ['/route/405UP','Route'], ['/journey/example','Journey options']];
+const screens: Array<[string, string]> = [['/','Plan'], ['/live','Live buses'], ['/speeds','Road speeds'], ['/accuracy','How accurate is Naadi?'], ['/about','About'], ['/help','Help'], ['/settings','Settings'], ['/stop/9729','Bus stop'], ['/route/405UP','Route'], ['/journey/example','Journey options']];
 test.describe('screen contracts', () => {
   test.beforeEach(async ({ page }) => { await mockApi(page); });
-  for (const [path, heading] of screens) test(`loads ${path}`, async ({ page }) => { await page.goto(path); await expect(page.locator('h1')).toContainText(heading); });
+  // The boot splash covers the whole window, so a page only counts as loaded once the splash is gone.
+  for (const [path, heading] of screens) test(`loads ${path}`, async ({ page }) => { await page.goto(path); await expect(page.locator('#splash')).toHaveCount(0); await expect(page.locator('h1')).toContainText(heading); });
 });
 
 const planned = [

@@ -9,4 +9,7 @@ export const shellEn = {
   "shell.close": "Close",
   "shell.light": "Light",
   "shell.dark": "Dark",
+  "shell.mapLoading": "Loading the map…",
+  "shell.mapUnavailable": "The map can't be shown in this browser.",
+  "shell.mapUnavailableBody": "You can still plan journeys: the options, steps and times work without the map.",
 } as const;

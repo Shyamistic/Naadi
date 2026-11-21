@@ -12,10 +12,11 @@ test.describe('WP1 shell', () => {
   test('settings persists theme and language', async ({ page }) => {
     await page.goto('/settings');
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
-    await page.getByTestId('settings-theme-dark').evaluate((button) => (button as HTMLButtonElement).click());
+    // Real clicks, so anything covering the page (such as the boot splash) fails the test.
+    await page.getByTestId('settings-theme-dark').click();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('naadi.settings.v1') ?? '{}').theme)).toBe('dark');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await page.getByTestId('settings-lang-hi').evaluate((button) => (button as HTMLButtonElement).click());
+    await page.getByTestId('settings-lang-hi').click();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('naadi.settings.v1') ?? '{}').lang)).toBe('hi');
   });
 });

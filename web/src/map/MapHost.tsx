@@ -4,6 +4,8 @@ import { buildStyle } from "./style/base";
 import { MapContext, type MapApi } from "./MapContext";
 import { useSettings } from "../settings/SettingsProvider";
 import { MapControls } from "../components/MapControls";
+import { useT } from "../i18n/I18nProvider";
+import { hideSplash } from "../app/splash";
 import "./map.css";
 
 type PluginApi = typeof maplibregl & { setRTLTextPlugin?: (url: string, lazy: boolean, callback?: (error?: Error) => void) => void; getRTLTextPluginStatus?: () => string };
@@ -15,10 +17,12 @@ function glyphRequest(url: string) { const match = url.match(/(\d+)-(\d+)\.pbf$/
 
 export function MapHost({ children }: { children?: ReactNode }) {
   const { settings } = useSettings();
+  const { t } = useT();
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapInstance | null>(null);
   const [map, setMap] = useState<MapInstance | null>(null);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [styleVersion, setStyleVersion] = useState(0);
   const [mode3d, setMode3d] = useState(false);
   const [camera, setCamera] = useState({ zoom: 10.6, pitch: 0, bearing: 0, center: [77.209, 28.6139] as [number, number] });
@@ -51,9 +55,17 @@ export function MapHost({ children }: { children?: ReactNode }) {
       const hindiReady = settings.lang !== "hi" || await loadComplexText();
       if (cancelled || !container.current) return;
       const language = settings.lang === "hi" && hindiReady ? "hi" : "en";
-      instance = new maplibregl.Map({ container: container.current, style: buildStyle(settings.theme, language), center: [77.209, 28.6139], zoom: 10.6, minZoom: 8, maxZoom: 18.5, maxPitch: 60, maxBounds: [[75.8, 27.6], [78.6, 29.9]], renderWorldCopies: false, attributionControl: false, transformRequest: (url, resourceType) => resourceType === "Glyphs" ? glyphRequest(url) : undefined });
+      try {
+        instance = new maplibregl.Map({ container: container.current, style: buildStyle(settings.theme, language), center: [77.209, 28.6139], zoom: 10.6, minZoom: 8, maxZoom: 18.5, maxPitch: 60, maxBounds: [[75.8, 27.6], [78.6, 29.9]], renderWorldCopies: false, attributionControl: false, transformRequest: (url, resourceType) => resourceType === "Glyphs" ? glyphRequest(url) : undefined });
+      } catch (error) {
+        // No WebGL (old devices, blocked GPUs, hardware acceleration off). Planning still works without the map.
+        console.warn("[map] could not start", error);
+        setFailed(true);
+        hideSplash();
+        return;
+      }
       mapRef.current = instance; setMap(instance); instance.resize();
-      const reveal = () => { setReady(true); window.__naadiSplash?.setStatus("map"); window.__naadiSplash?.hide(); };
+      const reveal = () => { setReady(true); hideSplash(); };
       const revealWhenIdle = () => {
         if (!instance?.isStyleLoaded() || !instance.areTilesLoaded() || !instance.isSourceLoaded("omt")) return;
         reveal();
@@ -73,5 +85,5 @@ export function MapHost({ children }: { children?: ReactNode }) {
   }, []);
 
   useEffect(() => { const instance = mapRef.current; if (!instance || !ready) return; let cancelled = false; (async () => { const hindiReady = settings.lang !== "hi" || await loadComplexText(); if (!cancelled && mapRef.current === instance) instance.setStyle(buildStyle(settings.theme, settings.lang === "hi" && hindiReady ? "hi" : "en")); })(); return () => { cancelled = true; }; }, [settings.theme, settings.lang, ready]);
-  return <MapContext.Provider value={api}><div className="map-wrap"><div ref={container} className="map-canvas" data-testid="map" data-control aria-label="Map. Use arrow keys to pan, equals and minus to zoom." data-ready={ready} data-style={settings.theme} data-zoom={camera.zoom.toFixed(2)} data-pitch={Math.round(camera.pitch)} data-bearing={Math.round(camera.bearing)} data-center={`${camera.center[0].toFixed(5)},${camera.center[1].toFixed(5)}`} /><div className="map-attribution"><a data-testid="attr-osm" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> · <a data-testid="attr-ofm" href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · <a data-testid="attr-omt" href="https://www.openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a></div></div><MapControls />{children}</MapContext.Provider>;
+  return <MapContext.Provider value={api}><div className="map-wrap"><div ref={container} className="map-canvas" data-testid="map" data-control aria-label="Map. Use arrow keys to pan, equals and minus to zoom." data-ready={ready} data-style={settings.theme} data-zoom={camera.zoom.toFixed(2)} data-pitch={Math.round(camera.pitch)} data-bearing={Math.round(camera.bearing)} data-center={`${camera.center[0].toFixed(5)},${camera.center[1].toFixed(5)}`} />{failed ? <div className="map-fallback" role="status" data-testid="map-unavailable"><strong>{t("shell.mapUnavailable")}</strong><span>{t("shell.mapUnavailableBody")}</span></div> : !ready && <div className="map-loading" role="status" aria-live="polite" data-testid="map-loading">{t("shell.mapLoading")}</div>}<div className="map-attribution"><a data-testid="attr-osm" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> · <a data-testid="attr-ofm" href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · <a data-testid="attr-omt" href="https://www.openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a></div></div>{!failed && <MapControls />}{children}</MapContext.Provider>;
 }

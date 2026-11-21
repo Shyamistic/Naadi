@@ -9,4 +9,7 @@ export const shellHi = {
   "shell.close": "बंद करें",
   "shell.light": "लाइट",
   "shell.dark": "डार्क",
+  "shell.mapLoading": "नक्शा लोड हो रहा है…",
+  "shell.mapUnavailable": "इस ब्राउज़र में नक्शा नहीं दिख सकता।",
+  "shell.mapUnavailableBody": "आप फिर भी यात्रा की योजना बना सकते हैं: विकल्प, चरण और समय नक्शे के बिना भी काम करते हैं।",
 } as const;

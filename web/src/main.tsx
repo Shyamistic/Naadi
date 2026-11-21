@@ -10,5 +10,4 @@ import { AppRouter } from "./app/router";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 function Providers(){const {settings}=useSettings();return <I18nProvider lang={settings.lang}><ErrorBoundary><AppRouter/></ErrorBoundary></I18nProvider>}
 const client=new QueryClient({defaultOptions:{queries:{retry:1,refetchOnWindowFocus:false,staleTime:30_000}}});
-window.__naadiReady=true;
 createRoot(document.getElementById("root")!).render(<StrictMode><QueryClientProvider client={client}><SettingsProvider><Providers/></SettingsProvider></QueryClientProvider></StrictMode>);
