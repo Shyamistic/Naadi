@@ -49,16 +49,16 @@ Methods and caveats: [technical note](docs/TECHNICAL_NOTE.md) and [validation re
 
 ## Run it yourself
 
-Requirements: Python 3.11+, Node 20+, about 40 GB of free disk for the October archive work.
+Requirements: Python 3.11+, Node 20+, about 40 GB of free disk for the October archive work. Full instructions, including running only the web app against the live API, are in [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md).
 
 1. **Get the data.**
    - Register at https://delhi.transportstack.in. Download "Delhi Buses: GTFS Static Data" (v1-2) into `delhi_buses_static_gtfs_v1-2/`, and the historical archive from the hackathon page into the repo root.
    - For live data, request an OTD key (https://otd.delhi.gov.in/data/realtime/).
    - Copy `.env.example` to `.env` and fill in the keys. Never commit `.env`.
-2. **Python setup:** `python -m venv .venv`, then `.venv\Scripts\pip install duckdb polars pyarrow lightgbm numba scikit-learn scipy fastapi uvicorn requests gtfs-realtime-bindings protobuf python-dotenv boto3 pytest httpx`.
+2. **Python setup:** `python -m venv .venv`, then `.venv\Scripts\python.exe -m pip install -r requirements.txt`.
 3. **Pipeline:** `python scripts/ingest_dtc_hist.py`, then `python scripts/gtfs_fix.py`, `python scripts/match_routes.py`, `python scripts/build_speed_tables.py` and `python scripts/rebuild_all.py --from-step 3`. On one laptop (16 threads, 16 GB) this takes about 2 hours, mostly the archive ingest.
 4. **API:** `uvicorn naadi.api:app --port 8000`. Live data appears when `scripts/record_feed.py` is running; it publishes `data/live/latest.pb`.
-5. **Web:** `cd web && npm install && npm run dev`, then open http://localhost:5173 (`/api` is proxied to port 8000).
+5. **Web:** `cd web && npm ci && npm run dev`, then open http://localhost:5173. By default `/api` goes to the live API; set `NAADI_API_TARGET=http://127.0.0.1:8000` to use your local one.
 6. **Tests:** `python -m pytest -q tests`.
 7. **Deploy:** `python infra/deploy_api.py` (AWS profile `naadi`).
 
