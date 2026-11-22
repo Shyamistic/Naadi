@@ -31,6 +31,7 @@ MODEL_FILES = ["data/processed/model/network_prod/network.npz", "data/processed/
                "data/processed/model/route_ac.json", "data/processed/model/calibration.json", "data/processed/model/calibration_v2.json",
                "data/processed/model/walk_v1/meta.json", "data/processed/model/walk_v1/targets.npz", "data/processed/model/walk_v1/pairs.npz",
                "data/processed/model/walk_v1/access.npz", "data/processed/model/fares_v1/fare_table.parquet",
+               "data/processed/model/pulse_baseline.json",
                "validation/results/eta_oct.json", "validation/results/summary.json"]
 TRAIL_ROOT = ROOT / "data" / "processed" / "model" / "trails_v1"
 # Uploads run from a laptop on Wi-Fi (21 Nov: a 180 MB upload failed with EndpointConnectionError).
@@ -173,7 +174,11 @@ WantedBy=multi-user.target
         "AmbientCapabilities=CAP_NET_BIND_SERVICE\nRestart=always\n\n[Install]\nWantedBy=multi-user.target\nEOF",
         # The salt for public bus ids is a secret kept in SSM (created on the first deploy). The server fetches it with
         # its own role, so it never appears in this script, the command history or git.
-        f"umask 077; printf 'NAADI_SALT=%s\\n' \"$(aws ssm get-parameter --name {SALT_PARAM} --with-decryption --query Parameter.Value --output text --region {REGION})\" > /etc/naadi-api.env; chmod 600 /etc/naadi-api.env; test -s /etc/naadi-api.env",
+        # A bare assignment fails the script (set -e) when the command fails, and an empty value fails the test, so a
+        # missing or unreadable secret rolls the deploy back instead of starting the API without one.
+        f"NAADI_SALT_VALUE=\"$(aws ssm get-parameter --name {SALT_PARAM} --with-decryption --query Parameter.Value --output text --region {REGION})\"",
+        "test ${#NAADI_SALT_VALUE} -ge 32",
+        "umask 077; printf 'NAADI_SALT=%s\\n' \"$NAADI_SALT_VALUE\" > /etc/naadi-api.env; chmod 600 /etc/naadi-api.env; unset NAADI_SALT_VALUE",
         "cat > /etc/systemd/system/naadi-api.service <<'EOF'\n" + unit + "EOF",
         "chown -R naadi:naadi /opt/naadi",
         "chmod 711 /opt/naadi", "chmod -R o+rX /opt/naadi/web",

@@ -275,3 +275,118 @@ def next_buses(board: int, alight: int):
             row["lat"], row["lon"] = round(pos[2], 5), round(pos[3], 5)
         buses.append(row)
     return {"now": core.iso(t), "live": bool(feed_ts and t - feed_ts <= 600), "routes": routes, "buses": buses}
+
+
+# ---------------------------------------------------------------- city pulse ("Delhi right now")
+import json  # noqa: E402
+import math  # noqa: E402
+
+IST_S = 19800
+PULSE_TTL_S = 15              # cache: the feed itself refreshes about every 11 s
+PULSE_MIN_TRAVERSALS = 200    # below this the city-wide comparison is too noisy to show
+SLOW_MIN_TRAVERSALS = 3       # a stretch needs at least this many buses through it in the window
+SLOW_MIN_RATIO = 1.35         # and must be taking at least 35% longer than usual
+STALE_FEED_S = 600
+_pulse_cache: dict = {"at": 0.0, "body": None}
+_link_rs_cache: dict = {}
+
+
+def _link_to_rs(net) -> np.ndarray:
+    """For each link id, the route-stop index j such that the link runs from stop j to stop j + 1 of one route."""
+    key = id(net)
+    m = _link_rs_cache.get(key)
+    if m is None:
+        rs_link = np.asarray(net.rs_link, np.int64)
+        m = np.full(int(rs_link.max()) + 1 if len(rs_link) else 0, -1, np.int64)
+        j = np.nonzero(rs_link >= 0)[0]
+        m[rs_link[j]] = j
+        _link_rs_cache.clear()
+        _link_rs_cache[key] = m
+    return m
+
+
+def _pulse_baseline() -> dict | None:
+    """Median live-style residual by hour on ordinary October days (scripts/build_pulse_baseline.py), or None."""
+    if "baseline" not in _pulse_cache:
+        path = core.MODEL / "pulse_baseline.json"
+        try:
+            _pulse_cache["baseline"] = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        except (OSError, ValueError):
+            _pulse_cache["baseline"] = None
+    return _pulse_cache["baseline"]
+
+
+def pulse_summary(buses, residuals, feed_ts: float, window_s: float, net, now: float | None = None,
+                  baseline: dict | None = None) -> dict:
+    """Delhi right now, from the buses' own GPS. A pure function of the live engine's state, so it is testable.
+
+    buses: (public id, route index, lat, lon, ts, progress) for buses reporting in the last 5 minutes.
+    residuals: (t_end, link, cell, r) for stretches completed in the last window_s seconds, where
+    r = ln(observed stretch time) - ln(the history model's time for that stretch at that hour and day type).
+    exp(median r) is therefore "times the usual" for the city, and exp(mean r) per stretch the same for one stretch.
+    """
+    now = time.time() if now is None else now
+    hour = int(((feed_ts + IST_S) % 86400) // 3600) if feed_ts else None
+    day = math.floor((feed_ts + IST_S) / 86400) if feed_ts else 0
+    stale = not feed_ts or now - feed_ts > STALE_FEED_S
+    density: dict = defaultdict(int)  # buses per 0.004-degree cell (about 450 m), for the home map's glow
+    for b in buses:
+        density[(round(b[2] * 250), round(b[3] * 250))] += 1
+    body = {"feed_time": dt.datetime.fromtimestamp(feed_ts, core.IST).isoformat(timespec="minutes") if feed_ts else None,
+            "stale": bool(stale), "buses": len(buses), "on_route": sum(1 for b in buses if b[1] >= 0 and b[5] >= 0),
+            "window_min": int(round(window_s / 60)), "traversals": len(residuals), "hour": hour,
+            "day_type": "weekend" if (day + 3) % 7 >= 5 else "weekday", "vs_usual": None, "slow": [],
+            "density": [[k[1] / 250, k[0] / 250, n] for k, n in sorted(density.items())]}
+    if stale or not residuals:
+        return body
+    # On an ordinary day the median residual is already below zero (the model predicts mean times and stretch times
+    # are right-skewed), so compare with the same hour and day type on ordinary October days, not with zero.
+    offset = 0.0
+    if baseline and hour is not None:
+        offset = float((baseline.get(body["day_type"]) or {}).get("median_r", [0.0] * 24)[hour] or 0.0)
+        body["baseline"] = "ordinary October days, same hour and day type"
+    r = np.fromiter((x[3] for x in residuals), np.float64, len(residuals)) - offset
+    if len(r) >= PULSE_MIN_TRAVERSALS:
+        ratio = float(np.exp(np.median(r)))
+        body["vs_usual"] = {"ratio": round(ratio, 3), "pct": int(round((ratio - 1) * 100))}
+    links = np.fromiter((x[1] for x in residuals), np.int64, len(residuals))
+    l2r = _link_to_rs(net)
+    if not len(l2r):
+        return body
+    ok = (links >= 0) & (links < len(l2r))
+    j = np.where(ok, l2r[np.clip(links, 0, len(l2r) - 1)], -1)
+    rs_route, rs_stop = np.asarray(net.rs_route), np.asarray(net.rs_stop)
+    nxt = np.minimum(j + 1, len(rs_route) - 1)
+    ok &= (j >= 0) & (j + 1 < len(rs_route)) & (rs_route[nxt] == rs_route[np.maximum(j, 0)])
+    groups: dict = defaultdict(lambda: [0.0, 0, set()])
+    for a, b, x, jj in zip(rs_stop[j[ok]].tolist(), rs_stop[nxt[ok]].tolist(), r[ok].tolist(), j[ok].tolist()):
+        g = groups[(a, b)]
+        g[0] += x
+        g[1] += 1
+        g[2].add(int(rs_route[jj]))
+    slow = [(s / n, n, ab, routes) for ab, (s, n, routes) in groups.items()
+            if n >= SLOW_MIN_TRAVERSALS and math.exp(s / n) >= SLOW_MIN_RATIO]
+    slow.sort(key=lambda c: -c[0])
+    for mean, n, (a, b), routes in slow[:10]:
+        names = sorted({base_name(str(net.route_short[x])) for x in routes}, key=natural_key)
+        body["slow"].append({"from": str(net.stop_names[a]), "to": str(net.stop_names[b]), "routes": names[:3],
+                             "ratio": round(math.exp(mean), 2), "buses": int(n),
+                             "coords": [[float(net.lon[a]), float(net.lat[a])], [float(net.lon[b]), float(net.lat[b])]]})
+    return body
+
+
+@router.get("/pulse")
+def pulse():
+    """Delhi right now: buses reporting, bus travel time against a usual day at this hour, and the slowest stretches."""
+    now = time.time()
+    if _pulse_cache["body"] is not None and now - _pulse_cache["at"] < PULSE_TTL_S:
+        return _pulse_cache["body"]
+    live = core.S.live
+    with live.lock:
+        buses = list(live.buses)
+        feed_ts = float(live.feed_ts or 0)
+        window = float(live.p.window_s)
+        res = [x for x in live.res if x[0] >= feed_ts - window]
+    body = pulse_summary(buses, res, feed_ts, window, core.S.net, now, _pulse_baseline())
+    _pulse_cache.update(at=now, body=body)
+    return body

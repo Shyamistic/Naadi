@@ -81,7 +81,10 @@ export function MapHost({ children }: { children?: ReactNode }) {
       (window as Window & { __naadiMap?: MapInstance }).__naadiMap = instance;
       return () => { window.clearInterval(readiness); resize.disconnect(); };
     })();
-    return () => { cancelled = true; const resize = (instance as (MapInstance & { __naadiResize?: ResizeObserver }) | undefined)?.__naadiResize; resize?.disconnect(); instance?.remove(); delete (window as Window & { __naadiMap?: MapInstance }).__naadiMap; mapRef.current = null; setMap(null); setReady(false); };
+    // React runs this cleanup before the overlays' own cleanups (it unmounts parents first), and those remove their
+    // layers from this map. Removing the map straight away made them throw on a dead map, which showed the error page
+    // when leaving a map page with in-app navigation. So the map is removed a moment later, after they have run.
+    return () => { cancelled = true; const resize = (instance as (MapInstance & { __naadiResize?: ResizeObserver }) | undefined)?.__naadiResize; resize?.disconnect(); const doomed = instance; window.setTimeout(() => doomed?.remove(), 0); delete (window as Window & { __naadiMap?: MapInstance }).__naadiMap; mapRef.current = null; setMap(null); setReady(false); };
   }, []);
 
   useEffect(() => { const instance = mapRef.current; if (!instance || !ready) return; let cancelled = false; (async () => { const hindiReady = settings.lang !== "hi" || await loadComplexText(); if (!cancelled && mapRef.current === instance) instance.setStyle(buildStyle(settings.theme, settings.lang === "hi" && hindiReady ? "hi" : "en")); })(); return () => { cancelled = true; }; }, [settings.theme, settings.lang, ready]);

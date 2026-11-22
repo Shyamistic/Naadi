@@ -33,7 +33,7 @@ IST_S = 19800
 # keeps it in AWS SSM Parameter Store, /naadi/api-salt). The fallback below is for local development only: ids made
 # with it are not private, and the API says so in its log.
 _DEV_SALT = "naadi-2026"
-SALT = os.environ.get("NAADI_SALT", _DEV_SALT)
+SALT = os.environ.get("NAADI_SALT") or _DEV_SALT
 if SALT == _DEV_SALT:
     print("NAADI_SALT is not set: bus ids use the public development salt (fine locally, not on a server)")
 

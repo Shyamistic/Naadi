@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "./client";
-import type { AccuracySummary, About, Capabilities, Departures, Health, JourneyResponse, LegNextBuses, LiveBuses, RouteDetail, RouteSearch, SpeedCells, StopSearchResult, StopsAll, StopsNearby } from "./types";
+import type { AccuracySummary, About, Capabilities, Departures, Health, JourneyResponse, LegNextBuses, LiveBuses, Pulse, RouteDetail, RouteSearch, SpeedCells, StopSearchResult, StopsAll, StopsNearby } from "./types";
+export const usePulse=()=>useQuery({queryKey:["pulse"],queryFn:()=>apiGet<Pulse>("/pulse"),refetchInterval:30000,staleTime:15000,retry:1});
 export const useHealth=()=>useQuery({queryKey:["health"],queryFn:()=>apiGet<Health>("/health"),refetchInterval:60000,staleTime:30000});
 export const useCapabilities=()=>useQuery({queryKey:["capabilities"],queryFn:()=>apiGet<Capabilities>("/capabilities"),staleTime:Infinity,retry:false});
 export const useStopSearch=(q:string)=>useQuery({queryKey:["stops-search",q],queryFn:()=>apiGet<StopSearchResult>(`/stops/search?q=${encodeURIComponent(q)}&limit=6`),enabled:q.trim().length>=2,staleTime:300000});

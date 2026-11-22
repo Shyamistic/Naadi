@@ -5,6 +5,7 @@ import type maplibregl from "maplibre-gl";
 
 export const ICON_BUS_FRESH = "naadi-bus-fresh";
 export const ICON_BUS_STALE = "naadi-bus-stale";
+export const ICON_TRAIN = "naadi-train";
 
 const SIZE = 56; // drawing size in pixels; registered with pixelRatio 2, so it shows at 28 CSS px before icon-size
 
@@ -52,11 +53,29 @@ function drawBus(body: string): ImageData | null {
 
 // Adds the icons to the map once per style. A new style (theme or language change) drops them, so callers run this
 // again after every "style.load" (the overlays depend on styleVersion and do).
+// A metro or Namo Bharat car seen from above: longer and narrower than a bus, with a light stripe of windows.
+function drawTrain(body: string): ImageData | null {
+  const made = canvas();
+  if (!made) return null;
+  const [, ctx] = made;
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  ctx.fillStyle = "rgba(15,23,42,.22)";
+  ctx.beginPath(); ctx.ellipse(SIZE / 2 + 1.5, SIZE / 2 + 2.5, 9, 26, 0, 0, Math.PI * 2); ctx.fill();
+  roundRect(ctx, 19, 1, 18, 54, 9);
+  ctx.fillStyle = body; ctx.fill();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = "#ffffff"; ctx.stroke();
+  roundRect(ctx, 22, 5, 12, 7, 3);
+  ctx.fillStyle = "rgba(15,23,42,.88)"; ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.6)";
+  for (let y = 16; y < 50; y += 8) { roundRect(ctx, 25, y, 6, 5, 1.5); ctx.fill(); }
+  return ctx.getImageData(0, 0, SIZE, SIZE);
+}
+
 export function ensureVehicleIcons(map: maplibregl.Map): void {
-  const wanted: [string, string][] = [[ICON_BUS_FRESH, "#138808"], [ICON_BUS_STALE, "#8b95a5"]];
-  for (const [name, colour] of wanted) {
+  const wanted: [string, () => ImageData | null][] = [[ICON_BUS_FRESH, () => drawBus("#138808")], [ICON_BUS_STALE, () => drawBus("#8b95a5")], [ICON_TRAIN, () => drawTrain("#1f4fa3")]];
+  for (const [name, draw] of wanted) {
     if (map.hasImage(name)) continue;
-    const image = drawBus(colour);
+    const image = draw();
     if (image) map.addImage(name, image, { pixelRatio: 2 });
   }
 }
