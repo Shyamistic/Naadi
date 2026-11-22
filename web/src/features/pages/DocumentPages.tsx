@@ -10,10 +10,17 @@ const feedback = "https://github.com/Shyamistic/Naadi/issues";
 function VersionInfo() {
   const { t } = useT();
   const about = useAbout();
-  if (about.isPending) return <p className={css.updated} aria-busy="true" data-testid="about-version-loading">{t("pages.versionLoading")}</p>;
-  if (about.isError || !about.data) return <p className={css.updated} data-testid="about-version-error">{t("pages.versionError")}</p>;
-  const { version, attribution, licence_note: licence } = about.data;
-  return <dl className={css.facts} data-testid="about-version">{version && <><dt>{t("pages.version")}</dt><dd>{version}</dd></>}{attribution && <><dt>{t("pages.dataSources")}</dt><dd>{attribution}</dd></>}{licence && <><dt>{t("pages.licence")}</dt><dd>{licence}</dd></>}</dl>;
+  const data = about.data;
+  return <>
+    <dl className={css.facts} data-testid="about-version">
+      {data?.version && <><dt>{t("pages.version")}</dt><dd>{data.version}</dd></>}
+      <dt>{t("pages.webBuild")}</dt><dd data-testid="about-web-build">{__NAADI_BUILD__}</dd>
+      {data?.attribution && <><dt>{t("pages.dataSources")}</dt><dd>{data.attribution}</dd></>}
+      {data?.licence_note && <><dt>{t("pages.licence")}</dt><dd>{data.licence_note}</dd></>}
+    </dl>
+    {about.isPending && <p className={css.updated} aria-busy="true" data-testid="about-version-loading">{t("pages.versionLoading")}</p>}
+    {about.isError && <p className={css.updated} data-testid="about-version-error">{t("pages.versionError")}</p>}
+  </>;
 }
 
 export function AboutPage() {

@@ -142,9 +142,11 @@ WantedBy=multi-user.target
         "swapon --show=NAME --noheadings | grep -qx /swapfile || swapon /swapfile",
         "grep -qE '^/swapfile[[:space:]]' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab",
         "sysctl -w vm.swappiness=10",
-        f"aws s3 sync s3://{bucket}/code/ /opt/naadi/ --region {REGION} --only-show-errors",
-        f"aws s3 sync s3://{bucket}/web/ /opt/naadi/web/ --region {REGION} --only-show-errors --delete",
-        f"aws s3 sync s3://{bucket}/artefacts/ /opt/naadi/ --region {REGION} --only-show-errors",
+        # --exact-timestamps: by default an S3-to-disk sync skips a file whose size is unchanged, even when its
+        # content changed. On 22 Nov 2026 a new web/index.html of the same length stayed old on the server.
+        f"aws s3 sync s3://{bucket}/code/ /opt/naadi/ --region {REGION} --only-show-errors --exact-timestamps",
+        f"aws s3 sync s3://{bucket}/web/ /opt/naadi/web/ --region {REGION} --only-show-errors --delete --exact-timestamps",
+        f"aws s3 sync s3://{bucket}/artefacts/ /opt/naadi/ --region {REGION} --only-show-errors --exact-timestamps",
         "/opt/naadi/.venv/bin/pip install --quiet -r /opt/naadi/infra/requirements-api.txt",
         f"test -x /usr/local/bin/caddy || (curl -sL {CADDY} -o /tmp/caddy.tgz && tar -xzf /tmp/caddy.tgz -C /usr/local/bin caddy && chmod 755 /usr/local/bin/caddy)",
         "id caddy || useradd --system --home /var/lib/caddy --create-home --shell /sbin/nologin caddy",
@@ -163,6 +165,7 @@ WantedBy=multi-user.target
         "ok=0; for i in $(seq 1 24); do if curl -fsS --max-time 10 http://127.0.0.1:8000/health | grep -q '\"status\"[[:space:]]*:[[:space:]]*\"ok\"'; then ok=1; break; fi; sleep 5; done; if [ \"$ok\" -ne 1 ]; then echo 'Naadi health check failed' >&2; exit 1; fi",
         "systemctl reload caddy || systemctl restart caddy",
         "curl -s --max-time 10 http://127.0.0.1:8000/health | head -c 400; echo",
+        "echo \"web build on server: $(grep -o 'naadi-build\" content=\"[^\"]*' /opt/naadi/web/index.html | cut -d'\"' -f3) $(grep -o 'assets/index-[A-Za-z0-9_-]*[.]js' /opt/naadi/web/index.html | head -1)\"",
         "ls -la /opt/naadi/data/live/ | tail -2",
         "free -m | head -2",
     ]
