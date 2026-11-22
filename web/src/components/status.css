@@ -1,0 +1,4 @@
+.status-banner,.status-toast{position:fixed;left:50%;transform:translateX(-50%);z-index:var(--z-popover);max-width:min(92vw,32rem);padding:.6rem 1rem;border-radius:var(--radius-full);box-shadow:var(--shadow-2);font-size:var(--text-sm);line-height:1.35;text-align:center;pointer-events:none}
+.status-banner{top:calc(var(--header-h) + .5rem);background:var(--color-warning-soft);color:var(--color-text);border:1px solid var(--color-warning)}
+.status-toast{bottom:1.25rem;background:var(--color-text);color:var(--color-surface)}
+@media (max-width:767px){.status-toast{bottom:calc(var(--sheet-h) + 1rem)}}

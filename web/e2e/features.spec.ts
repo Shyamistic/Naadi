@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { mockApi } from './support/mockApi';
+import { mockApiData } from './support/mockData';
 
-const screens: Array<[string, string]> = [['/','Plan'], ['/live','Live buses'], ['/speeds','Road speeds'], ['/accuracy','How accurate is Naadi?'], ['/about','About'], ['/help','Help'], ['/settings','Settings'], ['/stop/9729','Bus stop'], ['/route/405UP','Route'], ['/journey/example','Journey options']];
+// Each screen shows its heading once its data has loaded (fixture API in support/mockData.ts). /journey/<id> was a
+// placeholder and now opens the planner.
+const screens: Array<[string, string]> = [['/','Plan a bus journey'], ['/live','Live buses'], ['/speeds','Road speeds'], ['/accuracy','How accurate is Naadi?'], ['/about','About'], ['/help','Help'], ['/settings','Settings'], ['/stop/10046','Gandhi Darshan'], ['/route/1468','Route 405 towards Mehrauli'], ['/journey/example','Plan a bus journey']];
 test.describe('screen contracts', () => {
-  test.beforeEach(async ({ page }) => { await mockApi(page); });
+  test.beforeEach(async ({ page }) => { await mockApiData(page); });
   // The boot splash covers the whole window, so a page only counts as loaded once the splash is gone.
   for (const [path, heading] of screens) test(`loads ${path}`, async ({ page }) => { await page.goto(path); await expect(page.locator('#splash')).toHaveCount(0); await expect(page.locator('h1')).toContainText(heading); });
 });

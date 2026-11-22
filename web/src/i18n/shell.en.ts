@@ -12,6 +12,7 @@ export const shellEn = {
   "shell.mapLoading": "Loading the map…",
   "shell.mapUnavailable": "The map can't be shown in this browser.",
   "shell.mapUnavailableBody": "You can still plan journeys: the options, steps and times work without the map.",
+  "shell.busy": "Naadi is busy. Trying again in {s} s.",
   "chakra.hint": "Hover or tap a spoke to compare hours.",
   "chakra.plan": "Plan for {time}",
   "chakra.same": "same as your trip",

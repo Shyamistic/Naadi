@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet } from "../../api/client";
+import { isApiError } from "../../api/errors";
+import { useSpeedCells } from "../../api/queries";
 import type { DayType, SpeedCells } from "../../api/types";
 import { Button, ErrorState, Segmented, Slider, Spinner } from "../../ui/primitives";
 import { useMap } from "../../map/MapContext";
 import { SpeedsOverlay, speedColor } from "../../map/overlays/speeds";
-import { trailChunk, trailIndex, type TrailChunk, type TrailTrip } from "./trailsFixture";
+import { trailChunk, type TrailChunk, type TrailTrip } from "./trailsFixture";
 import { useT } from "../../i18n/I18nProvider";
 import css from "./speeds.module.css";
 
 const istHour = () => new Date(Date.now() + (330 + new Date().getTimezoneOffset()) * 60000).getHours();
 const median = (values: (number | null)[]) => { const sorted = values.filter((value): value is number => value != null).sort((a, b) => a - b); if (!sorted.length) return null; const middle = Math.floor(sorted.length / 2); return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2; };
 const clockSeconds = (hour: number) => hour * 3600;
+const FALLBACK_TRAILS: TrailChunk = { day_type: "weekday", hour: 0, t0: 0, trips: [] };
 
 function CityChart({ values, hour }: { values: (number | null)[]; hour: number }) { return <div className={css.chart} role="img" aria-label={`City average speed by hour. ${values.map((value, index) => `${index}:00 ${value == null ? "no data" : `${value.toFixed(1)} km/h`}`).join(", ")}`}><div className={css.chartLine}>{values.map((value, index) => <span key={index} className={index === hour ? css.chartCurrent : ""} style={{ left: `${index / 23 * 100}%`, bottom: `${Math.max(4, (value ?? 0) / Math.max(1, ...values.filter((v): v is number => v != null)) * 86)}%` }} />)}</div><div className={css.chartLabels}><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div></div>; }
 
@@ -26,14 +30,23 @@ function DeckLayer({ cells, day, hour, trips, playing }: { cells: SpeedCells["ce
   return null;
 }
 
+// One hour of bus trails. Cached for the session, so "Play the day" fetches each hour once; a server without
+// trails gets the bundled sample instead.
+const trailsQuery = (day: DayType, hour: number) => ({
+  queryKey: ["trails", day, hour] as const, staleTime: Infinity,
+  queryFn: ({ signal }: { signal: AbortSignal }) => apiGet<TrailChunk>(`/trails/${day}/${hour}`, { signal }).catch((error: unknown) => { if (isApiError(error) && error.kind === "aborted") throw error; return trailChunk(day, hour); }),
+});
+
 export default function SpeedsPage() {
-  const [params, setParams] = useSearchParams(); const hourRaw = Number(params.get("hour")); const hour = Number.isInteger(hourRaw) && hourRaw >= 0 && hourRaw <= 23 ? hourRaw : istHour(); const day: DayType = params.get("day") === "weekend" ? "weekend" : "weekday"; const [data, setData] = useState<SpeedCells | null>(null); const [error, setError] = useState(false); const [playing, setPlaying] = useState(false); const [cellPopup, setCellPopup] = useState<{ speed: number | null; n: number } | null>(null); const [trails, setTrails] = useState<TrailChunk>(trailChunk(day, hour)); const { setMode3d, map: speedMap, ready: speedReady } = useMap(); const { t } = useT(); const framed = useRef(false);
-  useEffect(() => { setMode3d(true); return () => setPlaying(false); }, [setMode3d]);
+  const [params, setParams] = useSearchParams(); const hourRaw = Number(params.get("hour")); const hour = Number.isInteger(hourRaw) && hourRaw >= 0 && hourRaw <= 23 ? hourRaw : istHour(); const day: DayType = params.get("day") === "weekend" ? "weekend" : "weekday"; const [playing, setPlaying] = useState(false); const [cellPopup, setCellPopup] = useState<{ speed: number | null; n: number } | null>(null); const { setMode3d, map: speedMap, ready: speedReady } = useMap(); const { t } = useT(); const framed = useRef(false); const queryClient = useQueryClient();
+  const cells = useSpeedCells(); const data: SpeedCells | null = cells.data ?? null;
+  const trailQuery = useQuery({ ...trailsQuery(day, hour), placeholderData: keepPreviousData });
+  const trails = trailQuery.data ?? FALLBACK_TRAILS;
+  useEffect(() => { void queryClient.prefetchQuery(trailsQuery(day, (hour + 1) % 24)); }, [day, hour, queryClient]);
+  useEffect(() => { setMode3d(true); }, [setMode3d]);
   useEffect(() => { if (!speedMap || !speedReady || framed.current) return; framed.current = true; speedMap.easeTo({ center: [77.205, 28.62], zoom: 10.9, pitch: 55, bearing: -15, duration: 1400 }); }, [speedMap, speedReady]);
-  const load = useCallback(async () => { try { setData(await apiGet<SpeedCells>("/speeds/cells")); setError(false); } catch { setError(true); } }, []); useEffect(() => { void load(); }, [load]);
-  useEffect(() => { let disposed = false; void apiGet<TrailChunk>(`/trails/${day}/${hour}`).catch(() => trailChunk(day, hour)).then((chunk) => { if (!disposed) setTrails(chunk); }); void apiGet<typeof trailIndex>("/trails/index").catch(() => trailIndex).then((index) => { const next = (hour + 1) % 24; void apiGet<TrailChunk>(`/trails/${day}/${next}`).catch(() => trailChunk(day, next)); if (!index) return; }); return () => { disposed = true; }; }, [day, hour]);
   useEffect(() => { if (!playing) return; const timer = window.setInterval(() => setParams((current) => { const next = Number(current.get("hour") ?? hour); current.set("hour", String((next + 1) % 24)); return current; }, { replace: true }), 1200); return () => window.clearInterval(timer); }, [hour, playing, setParams]);
   const values = useMemo(() => data?.cells.map((cell) => cell[day]?.[hour] ?? null) ?? [], [data, day, hour]); const hourly = useMemo(() => Array.from({ length: 24 }, (_, index) => median(data?.cells.map((cell) => cell[day]?.[index] ?? null) ?? [])), [data, day]); const fastest = useMemo(() => { const candidates = hourly.map((value, index) => ({ value, index })).filter((item): item is { value: number; index: number } => item.value != null); return candidates.sort((a, b) => b.value - a.value)[0]; }, [hourly]); const selected = median(values); const summary = selected == null ? "No speed observations are available for this hour." : `At ${String(hour).padStart(2, "0")}:00 on ${day === "weekday" ? "weekdays" : "weekends"}, buses average ${selected.toFixed(1)} km/h across Delhi${fastest ? `; at ${String(fastest.index).padStart(2, "0")}:00, ${fastest.value.toFixed(1)} km/h.` : "."}`;
-  if (error && !data) return <ErrorState title="Road speeds are unavailable" body="The speed cells could not be loaded." action={<Button testId="speeds-retry" onClick={() => void load()}>Retry</Button>} />;
+  if (cells.isError && !data) return <ErrorState title="Road speeds are unavailable" body="The speed cells could not be loaded. Naadi tries again every 30 s." action={<Button testId="speeds-retry" onClick={() => void cells.refetch()}>Retry</Button>} />;
   return <div className={css.page}><h1>{t("speeds.title")}</h1><p className={css.summary}>{summary}</p><Segmented testId="speeds-daytype" items={[{ id: "weekday", label: "Weekday" }, { id: "weekend", label: "Weekend" }]} selectedKey={day} onChange={(key) => setParams({ day: key, hour: String(hour) }, { replace: true })} /><div className={css.player}><Button testId="speeds-play" aria-pressed={playing} onClick={() => setPlaying((value) => !value)}>{playing ? "Pause" : "Play the day"}</Button><Slider testId="speeds-hour" label={`Hour · ${String(hour).padStart(2, "0")}:00`} min={0} max={23} step={1} value={hour} onChange={(value) => { setPlaying(false); setParams({ day, hour: String(value) }, { replace: true }); }} /></div><div className={css.legend}>{[["Under 10 km/h", "#B2182B"], ["10–15 km/h", "#E35D31"], ["15–20 km/h", "#F4A340"], ["20–25 km/h", "#6BAED6"], ["25+ km/h", "#2166AC"]].map(([label, color]) => <span key={label}><i style={{ background: color }} />{label}</span>)}<span>Taller columns are slower</span></div>{data ? <><p className={css.cells}>{values.filter((value) => value != null).length.toLocaleString()} road cells · {selected == null ? "No observations" : `${selected.toFixed(1)} km/h median`}</p><CityChart values={hourly} hour={hour} /><p className={css.source}>{data.source ?? "Delhi Transport Stack speed observations"}</p><SpeedsOverlay cells={data.cells} day={day} hour={hour} onCellClick={(cell, speed) => setCellPopup({ speed, n: cell.n })} /><DeckLayer cells={data.cells} day={day} hour={hour} trips={trails.trips} playing={playing} /></> : <p className={css.loading}><Spinner size={18} /> Loading road cells…</p>}{cellPopup && <div className={css.popup} role="dialog" aria-label="Road speed details"><strong>{cellPopup.speed == null ? "No speed data" : `${cellPopup.speed.toFixed(1)} km/h`}</strong><span>at {String(hour).padStart(2, "0")}:00 on {day === "weekday" ? "weekdays" : "weekends"} · {cellPopup.n} observations</span><button data-testid="popup-close" onClick={() => setCellPopup(null)}>Close</button></div>}</div>;
 }

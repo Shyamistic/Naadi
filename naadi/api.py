@@ -162,18 +162,44 @@ app = FastAPI(title="Naadi API", version="1.0",
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(trails_router)
-_hits: dict[str, deque] = defaultdict(deque)
+# Per-IP request budgets over a sliding minute. One browser tab stays far below them: a page load makes up to
+# about 15 requests and the open screens poll a few endpoints every 15-60 s. They are generous because people on
+# one office, campus or mobile-carrier network reach the server from one IP (the web app also throttles itself
+# and waits out a 429 using Retry-After). /journeys runs the router, the expensive call, so it has its own budget.
+RATE_WINDOW_S = 60.0
+RATE_LIMITS = {"all": 600, "journeys": 60}
+_hits: dict[tuple[str, str], deque] = defaultdict(deque)
+_hits_swept = 0.0
+
+
+def _rate_check(key: tuple[str, str], limit: int, now: float) -> int:
+    """Count one request for `key`. Returns 0 if it is within `limit`, else the seconds until a slot frees."""
+    q = _hits[key]
+    while q and q[0] <= now - RATE_WINDOW_S:
+        q.popleft()
+    if len(q) >= limit:
+        return max(1, math.ceil(q[0] + RATE_WINDOW_S - now))
+    q.append(now)
+    return 0
 
 
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
+    global _hits_swept
+    # Caddy sets X-Forwarded-For to the address it accepted the connection from.
     ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
-    q, now = _hits[ip], time.time()
-    while q and q[0] < now - 60:
-        q.popleft()
-    if len(q) >= 120:
-        return JSONResponse({"detail": "Too many requests; try again in a minute."}, status_code=429)
-    q.append(now)
+    now = time.time()
+    if now - _hits_swept > RATE_WINDOW_S:  # forget addresses that have gone quiet
+        for key in [k for k, q in _hits.items() if not q or q[-1] <= now - RATE_WINDOW_S]:
+            del _hits[key]
+        _hits_swept = now
+    wait = 0
+    if request.url.path.rstrip("/").endswith("/journeys"):
+        wait = _rate_check((ip, "journeys"), RATE_LIMITS["journeys"], now)
+    wait = wait or _rate_check((ip, "all"), RATE_LIMITS["all"], now)
+    if wait:
+        return JSONResponse({"detail": f"Too many requests; try again in {wait} s."}, status_code=429,
+                            headers={"Retry-After": str(wait)})
     return await call_next(request)
 
 
@@ -578,6 +604,7 @@ def departures(stop_id: int):
         r = int(n.rs_route[r_s])
         ew = _interp(wait[h0, r_s], wait[h1, r_s], w)
         rows.append({"route": re.sub(r"(UP|DOWN)\d*$", "", n.route_short[r]).strip(), "route_variant": n.route_short[r].strip(),
+                     "route_id": int(n.route_ids[r]),
                      "towards": n.route_desc[r].split(" to ")[-1] if n.route_desc[r] else "",
                      "live_eta_min": by.get(r_s, [])[:3],
                      "typical_wait_min": None if not np.isfinite(ew) or ew > 1e8 else round(float(ew) / 60, 1)})

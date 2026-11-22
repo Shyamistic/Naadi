@@ -4,6 +4,7 @@ import { AppHeader } from "../components/AppHeader";
 import { Footer } from "../components/Footer";
 import { MapHost } from "../map/MapHost";
 import { Sheet } from "../components/Sheet";
+import { StatusMessages } from "../components/StatusMessages";
 import { hideSplash, markAppStarted, MAP_SPLASH_CAP_MS } from "./splash";
 import css from "./shell.module.css";
 import "./sheet.css";
@@ -24,5 +25,5 @@ export function AppShell() {
     const timer = window.setTimeout(hideSplash, MAP_SPLASH_CAP_MS);
     return () => window.clearTimeout(timer);
   }, [documentPage]);
-  return <div className={`${css.shell} shell`}><a href="#main" className="skip-link" data-testid="skip-link">Skip to main content</a><AppHeader /><main className="app-content" id="main">{!documentPage ? <div className="map-area"><MapHost><Sheet><section className="panel"><div className="panel-inner"><Outlet /></div></section></Sheet></MapHost></div> : <section className="panel document-panel"><div className="panel-inner"><Outlet /><Footer /></div></section>}</main></div>;
+  return <div className={`${css.shell} shell`}><a href="#main" className="skip-link" data-testid="skip-link">Skip to main content</a><AppHeader /><StatusMessages /><main className="app-content" id="main">{!documentPage ? <div className="map-area"><MapHost><Sheet><section className="panel"><div className="panel-inner"><Outlet /></div></section></Sheet></MapHost></div> : <section className="panel document-panel"><div className="panel-inner"><Outlet /><Footer /></div></section>}</main></div>;
 }

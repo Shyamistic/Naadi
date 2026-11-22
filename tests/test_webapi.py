@@ -69,3 +69,21 @@ def test_endpoint_validation():
         assert client.get("/stops/nearby?lat=28.6&lon=77.2&radius_m=5000").status_code == 422
         assert client.get("/routes/999999999").status_code == 404
         assert client.get("/legs/next-buses?board=1&alight=1").status_code in (400, 404)
+
+
+@pytest.mark.skipif(not (NET / "network.npz").exists(), reason="built network not present")
+def test_departures_link_to_their_route():
+    """Each departure carries its route_id, so the stop board opens the route without a search request."""
+    from fastapi.testclient import TestClient
+    from naadi.api import app
+
+    with TestClient(app) as client:
+        stops = client.get("/stops/all").json()["stops"]
+        stop_id = next(s[0] for s in stops if s[4] > 0)  # a stop that some route serves
+        body = client.get(f"/stops/{stop_id}/departures").json()
+        assert body["stop"]["stop_id"] == stop_id and body["departures"]
+        first = body["departures"][0]
+        assert {"route", "route_variant", "route_id", "towards", "live_eta_min", "typical_wait_min"} <= set(first)
+        route = client.get(f"/routes/{first['route_id']}")
+        assert route.status_code == 200 and route.json()["variant"] == first["route_variant"]
+        assert client.get("/stops/999999999/departures").status_code == 404
