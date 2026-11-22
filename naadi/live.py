@@ -28,7 +28,14 @@ from .nowcast import NowcastParams
 KX, KY = 111320.0 * 0.8780, 110574.0
 SNAP_M = 60.0
 IST_S = 19800
-SALT = os.environ.get("NAADI_SALT", "naadi-2026")
+# Public bus ids are sha256(SALT + source id). The source ids are licence plates, so anyone who knows the SALT could
+# recover plates by hashing every plausible plate. The server therefore sets NAADI_SALT to a secret (infra/deploy_api.py
+# keeps it in AWS SSM Parameter Store, /naadi/api-salt). The fallback below is for local development only: ids made
+# with it are not private, and the API says so in its log.
+_DEV_SALT = "naadi-2026"
+SALT = os.environ.get("NAADI_SALT", _DEV_SALT)
+if SALT == _DEV_SALT:
+    print("NAADI_SALT is not set: bus ids use the public development salt (fine locally, not on a server)")
 
 
 @njit(cache=True)

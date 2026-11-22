@@ -22,6 +22,7 @@ from botocore.config import Config
 ROOT = Path(__file__).resolve().parents[1]
 REGION = "ap-south-1"
 IID = "i-02e366d4128da827b"
+SALT_PARAM = "/naadi/api-salt"
 CADDY = "https://github.com/caddyserver/caddy/releases/download/v2.10.2/caddy_2.10.2_linux_arm64.tar.gz"
 MODEL_FILES = ["data/processed/model/network_prod/network.npz", "data/processed/model/network_prod/network_meta.json",
                "data/processed/model/network_prod_mm/network.npz", "data/processed/model/network_prod_mm/network_meta.json",
@@ -36,6 +37,19 @@ TRAIL_ROOT = ROOT / "data" / "processed" / "model" / "trails_v1"
 # Retry harder than the defaults and use fewer parallel connections.
 AWS_CONFIG = Config(retries={"max_attempts": 10, "mode": "standard"}, connect_timeout=20, read_timeout=120)
 UPLOAD = TransferConfig(multipart_chunksize=16 * 1024 * 1024, max_concurrency=4)
+
+
+def ensure_salt(s) -> None:
+    """Create the secret salt for public bus ids in SSM on the first deploy. Never printed or logged."""
+    import secrets
+    ssm = s.client("ssm", config=AWS_CONFIG)
+    try:
+        ssm.get_parameter(Name=SALT_PARAM)
+        print("bus-id salt: present in SSM")
+    except ssm.exceptions.ParameterNotFound:
+        ssm.put_parameter(Name=SALT_PARAM, Value=secrets.token_hex(32), Type="SecureString",
+                          Description="Salt for the public bus ids the API returns (see naadi/live.py)")
+        print("bus-id salt: created in SSM")
 
 
 def ssm_run(s, cmds, timeout=900):
@@ -55,6 +69,7 @@ def main() -> None:
     ap.add_argument("--code-only", action="store_true")
     a = ap.parse_args()
     s = boto3.Session(profile_name="naadi", region_name=REGION)
+    ensure_salt(s)
     acct = s.client("sts").get_caller_identity()["Account"]
     bucket = f"naadi-data-{acct}"
     ec2, s3 = s.client("ec2", config=AWS_CONFIG), s.client("s3", config=AWS_CONFIG)
@@ -121,6 +136,7 @@ User=naadi
 WorkingDirectory=/opt/naadi
 Environment=NAADI_ROOT=/opt/naadi
 Environment=NUMBA_CACHE_DIR=/opt/naadi/.numba
+EnvironmentFile=/etc/naadi-api.env
 ExecStart=/opt/naadi/.venv/bin/uvicorn naadi.api:app --host 127.0.0.1 --port 8000 --root-path /api --workers 1
 Restart=always
 RestartSec=5
@@ -155,6 +171,9 @@ WantedBy=multi-user.target
         "cat > /etc/systemd/system/caddy.service <<'EOF'\n[Unit]\nDescription=Caddy\nAfter=network-online.target\n\n[Service]\nUser=caddy\n"
         "ExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile\nExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile\n"
         "AmbientCapabilities=CAP_NET_BIND_SERVICE\nRestart=always\n\n[Install]\nWantedBy=multi-user.target\nEOF",
+        # The salt for public bus ids is a secret kept in SSM (created on the first deploy). The server fetches it with
+        # its own role, so it never appears in this script, the command history or git.
+        f"umask 077; printf 'NAADI_SALT=%s\\n' \"$(aws ssm get-parameter --name {SALT_PARAM} --with-decryption --query Parameter.Value --output text --region {REGION})\" > /etc/naadi-api.env; chmod 600 /etc/naadi-api.env; test -s /etc/naadi-api.env",
         "cat > /etc/systemd/system/naadi-api.service <<'EOF'\n" + unit + "EOF",
         "chown -R naadi:naadi /opt/naadi",
         "chmod 711 /opt/naadi", "chmod -R o+rX /opt/naadi/web",

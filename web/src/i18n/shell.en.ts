@@ -12,4 +12,12 @@ export const shellEn = {
   "shell.mapLoading": "Loading the map…",
   "shell.mapUnavailable": "The map can't be shown in this browser.",
   "shell.mapUnavailableBody": "You can still plan journeys: the options, steps and times work without the map.",
+  "chakra.hint": "Hover or tap a spoke to compare hours.",
+  "chakra.plan": "Plan for {time}",
+  "chakra.same": "same as your trip",
+  "chakra.faster": "{min} min faster",
+  "chakra.slower": "{min} min slower",
+  "chakra.noService": "No service",
+  "chakra.unit": "min · this trip",
+  "chakra.quiet": "quietest hour",
 } as const;

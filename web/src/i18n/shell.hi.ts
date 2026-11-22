@@ -12,4 +12,12 @@ export const shellHi = {
   "shell.mapLoading": "नक्शा लोड हो रहा है…",
   "shell.mapUnavailable": "इस ब्राउज़र में नक्शा नहीं दिख सकता।",
   "shell.mapUnavailableBody": "आप फिर भी यात्रा की योजना बना सकते हैं: विकल्प, चरण और समय नक्शे के बिना भी काम करते हैं।",
+  "chakra.hint": "घंटों की तुलना के लिए किसी तीली पर माउस ले जाएँ या टैप करें।",
+  "chakra.plan": "{time} के लिए योजना बनाएँ",
+  "chakra.same": "आपकी यात्रा के बराबर",
+  "chakra.faster": "{min} मिनट तेज़",
+  "chakra.slower": "{min} मिनट धीमा",
+  "chakra.noService": "सेवा नहीं",
+  "chakra.unit": "मिनट · यह यात्रा",
+  "chakra.quiet": "सबसे शांत घंटा",
 } as const;
