@@ -1,0 +1,10 @@
+# Everything needed to run the API, the tests and the data pipeline locally (Python 3.11 or newer).
+# The AWS server installs only infra/requirements-api.txt, the API's runtime needs.
+-r infra/requirements-api.txt
+lightgbm>=4.5        # link travel-time model (scripts/link_model.py)
+scipy>=1.14          # walking network build (scripts/build_walk.py)
+osmium>=4.0          # OpenStreetMap parsing (scripts/build_walk.py)
+openpyxl>=3.1        # DMRC station spreadsheets (scripts/build_walk.py)
+boto3>=1.35          # S3 sync and deploys (scripts/ingest_live.py, scripts/fetch_eta_logs.py, infra/)
+pytest>=8            # tests
+httpx>=0.27          # FastAPI test client used by the tests

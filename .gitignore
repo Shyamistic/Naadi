@@ -26,3 +26,5 @@ validation/results/*.parquet
 .pytest_cache/
 .worktrees/
 .agents/
+web/test-results/
+web/playwright-report/
