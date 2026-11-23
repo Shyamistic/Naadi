@@ -1,6 +1,6 @@
 # Naadi demo video script
 
-Written Mon 23 Nov 2026 for web build `7bb8f44` (About → Version and data → Web app build). It replaces the 17 Nov script, whose accuracy figures were out of date. Every number below was checked on the live site or in `validation\results` on 23 Nov.
+Written Mon 23 Nov 2026 for web build `cf75acf` (About → Version and data → Web app build). It replaces the 17 Nov script, whose accuracy figures were out of date. Every number below was checked on the live site or in `validation\results` on 23 Nov.
 
 | | |
 | --- | --- |
@@ -25,7 +25,7 @@ Written Mon 23 Nov 2026 for web build `7bb8f44` (About → Version and data → 
 
 ## Before you record
 
-### Fixed before recording (live since build `7bb8f44`, 23 Nov)
+### Fixed before recording (live since build `cf75acf`, 23 Nov)
 
 The issues that would have shown on camera are fixed and deployed: the home subtitle now says "38 million real stop-to-stop bus runs" (not trips), the sentence under the dial names the real slowest hour, the hour chart sits fully under the dial, the quieter-hour box and the dial agree ("8 min"), shared journey links open the journey, and a trip with no bus option shows a message instead of an error. Details: `docs\MANUAL_TESTING.md`, "Known issues".
 
@@ -46,7 +46,7 @@ One thing to keep in mind: the 13:30 spoke of the example's dial is its longest 
 
 ### Warm-up, 10 minutes before
 
-1. https://13-235-147-97.sslip.io/about → "Version and data" → "Web app build" reads `7bb8f44 2026-11-23T11:09Z` or later.
+1. https://13-235-147-97.sslip.io/about → "Version and data" → "Web app build" reads `cf75acf 2026-11-23T11:09Z` or later.
 2. https://13-235-147-97.sslip.io/api/health → `"buses"` above 2,000.
 3. Run the brief's example once, open Road speeds once and Live buses once, so the first-load downloads are cached. Then reload the home page.
 4. Choose the "leave now" pair for scene 6 (see that scene) and keep its link ready.

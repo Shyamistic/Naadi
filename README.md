@@ -329,7 +329,7 @@ Rate limits: 600 requests a minute per address, 60 of them for `/journeys`; a re
 
 ## 🔨 What we built during the hackathon
 
-Everything in this repository was written during Phase 1 of the Transport Stack Hackathon 2026: the first commit is from 15 Nov 2026, and there are over 110 commits since. That covers the data pipeline, the travel-time model and nowcast, the planner, the API, the web app, the AWS deployment, the evaluations and these documents.
+Everything in this repository was written during Phase 1 of the Transport Stack Hackathon 2026: the first commit is from 15 Nov 2026, and there are over 100 commits since. That covers the data pipeline, the travel-time model and nowcast, the planner, the API, the web app, the AWS deployment, the evaluations and these documents.
 
 Pre-existing work we build on, all credited below: the Transport Stack data; open-source libraries; OpenStreetMap data and OpenFreeMap tiles; Photon (komoot) for place search; the MapLibre complex-text plugin for Devanagari shaping; and published methods (RAPTOR, optimal strategies for common lines, empirical-Bayes shrinkage, gradient-boosted trees, split-conformal prediction, a log-normal Kalman filter baseline).
 

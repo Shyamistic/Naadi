@@ -1,6 +1,6 @@
 # Naadi manual testing guide
 
-Written Mon 23 Nov 2026 for web build `7bb8f44`. Live site: https://13-235-147-97.sslip.io/
+Written Mon 23 Nov 2026 for web build `cf75acf`. Live site: https://13-235-147-97.sslip.io/
 
 This guide is for testing the live site by hand. It covers what the automated tests can't judge: how the app looks on real screens, whether the times are plausible to someone who rides these buses, real phones and GPUs, real location, installing the app, screen readers, and how the app behaves over minutes on a real network.
 
@@ -39,7 +39,7 @@ The other suites are in `docs\LOCAL_DEVELOPMENT.md`, "Build and test".
 | API health | https://13-235-147-97.sslip.io/api/health |
 | Published results | https://13-235-147-97.sslip.io/api/accuracy |
 
-1. **Check the build.** Open About → "Version and data" → "Web app build". It should read `7bb8f44 2026-11-23T11:09Z` or later. Write it on your results sheet: every result belongs to a build.
+1. **Check the build.** Open About → "Version and data" → "Web app build". It should read `cf75acf 2026-11-23T11:09Z` or later. Write it on your results sheet: every result belongs to a build.
 2. **Test live features between 08:00 and 21:00 IST** and note the time of each live test. Bus counts run from about 600 after midnight to about 5,000 at peaks.
 3. **Start clean.** Use a new browser profile or clear the site's data (DevTools → Application → Storage → "Clear site data"), so saved places, recent journeys and settings don't carry over. Private windows can't install the app, so use a normal profile for section 7.
 4. **Tools.** Chrome DevTools (F12): Network (tick "Preserve log", filter `api`), Console (errors), Application (storage), and the throttling menu. Test phones on real devices; DevTools' device mode is only a rough check.
@@ -220,7 +220,7 @@ The columns and trails need a GPU. If they're missing, check that hardware accel
 | ACC-01 | P1 | Open Accuracy | "How accurate is Naadi?"; "Results updated 21 Nov 2026, 6:02 pm"; five tiles: 2.2 min (Published timetable: 4.6 min; 19,87,389 predictions, tested 26–31 Oct 2026); 4.3 min (13.1% of a 33 min ride; 90.4% within 10 min; 28,76,808 rides); 15.5 min (Timetable planner: 22.9 min; 3,598 journeys, tested 29–31 Oct); 12.3 min (Google Maps: 36.5 min; 91 trips, tested 15–16 Nov); 7.4 min (Transport Stack ETA Calculator: 9.7 min; 9,616 answers, tested 15–16 Nov) |
 | ACC-02 | P1 | Open `/api/accuracy` and compare three figures with the tiles | They match, after rounding |
 | ACC-03 | P2 | Scroll through the page | "Bus arrival at a stop, by method" (nine methods, Naadi first at 133.3 s); the error by stops ahead; "Time on the bus, ride only"; "Door to door, replayed on real buses", with the note that walking was straight-line; "How often the range held the real time"; the ETA Calculator section (with Naadi's error when answering from the latest position, and the age of the Calculator's bus positions); the Google section (with the small-sample note); "All published figures" |
-| ACC-04 | P2 | Click "Download the results (JSON)", then "Read the full validation report…" | `naadi-accuracy.json` downloads. The report link goes to GitHub, which answers 404 until the repo is public (K5) |
+| ACC-04 | P2 | Click "Download the results (JSON)", then "Read the full validation report…" | `naadi-accuracy.json` downloads; the report opens on GitHub (docs/VALIDATION_REPORT.md) |
 | ACC-05 | P2 | Switch to Hindi | The whole page is in Hindi |
 
 ### 5.10 About, Help, Settings and other pages
@@ -231,7 +231,7 @@ The columns and trails need a GPU. If they're missing, check that hardware accel
 | DOC-02 | P2 | Open Help and use its contents links | They jump to "How to read a card", "The dial and ranges" and "'Or' routes and schedule-estimated metro" |
 | DOC-03 | P1 | In Settings, change Language, Theme, Text size (100, 112, 125%) and Reduce motion; reload; then "Reset settings" | Each change applies at once and survives a reload; Reset returns to English, light, 100%, motion on |
 | DOC-04 | P3 | Open Privacy, Accessibility and Terms | Each has its heading and text |
-| DOC-05 | P2 | On About, click "Send feedback" | GitHub issues; 404 until the repo is public (K5) |
+| DOC-05 | P2 | On About, click "Send feedback" | The repository's GitHub Issues page opens |
 
 ### 5.11 Map controls
 
@@ -277,7 +277,7 @@ The columns and trails need a GPU. If they're missing, check that hardware accel
 
 ### 6.1 Request count: the 22 Nov bug
 
-On 22 Nov, opening a stop from a route page made the stop page ask for its departures again and again, over 1,000 requests a minute, until the server refused every request from that address (HTTP 429) and Live buses and Road speeds stopped working until a reload. Build `cd56a9d` fixed it. Repeat this check after any change to the screens.
+On 22 Nov, opening a stop from a route page made the stop page ask for its departures again and again, over 1,000 requests a minute, until the server refused every request from that address (HTTP 429) and Live buses and Road speeds stopped working until a reload. Build `532ecd3` fixed it. Repeat this check after any change to the screens.
 
 **REQ-01 (P1), the reported path**
 
@@ -423,19 +423,19 @@ Mark a failure caused by an open issue as "Known issue Kn" rather than filing it
 
 | # | Issue | Where | Seen in | Status |
 | --- | --- | --- | --- | --- |
-| K1 | The home subtitle and the "past trips" counts said trips; the numbers count stop-to-stop bus runs (38 million traversals; a ride's count sums its stretches' observations) | `plan.subtitle`, `results.evidence`, `journey.based` in the string files | Home page, RES-02, DET-01 | Fixed in `4232b7e` |
-| K2 | "slowest around 18:30" was fixed text; it now names the longest spoke (13:30 for the example) | `PlanPage.tsx` | DET-06 | Fixed in `4232b7e` |
-| K3 | On desktop the hour chart beside the dial was cut off at the panel's edge; it now sits under the dial | `plan.css` | DET-06 | Fixed in `4232b7e` |
-| K4 | Shared planner links lost `&option=` (the list opened instead of the journey) and `modes=bus` | `PlanPage.tsx` | RES-10 | Fixed in `4232b7e` |
-| K5 | "Read the full validation report…" and "Send feedback" point to github.com/Shyamistic/Naadi, which isn't public yet, so they answer 404 | `AccuracyPage.tsx`, `DocumentPages.tsx` | ACC-04, DOC-05 | Open until the repository is public |
-| K6 | No message when there was no bus option, and with metro off the planner crashed ("Something went wrong") because the API's no-journey answer had a reduced query block | `PlanPage.tsx`, `naadi/api.py` | RES-12 | Fixed in `4232b7e` and `5221f97` |
+| K1 | The home subtitle and the "past trips" counts said trips; the numbers count stop-to-stop bus runs (38 million traversals; a ride's count sums its stretches' observations) | `plan.subtitle`, `results.evidence`, `journey.based` in the string files | Home page, RES-02, DET-01 | Fixed in `a3557be` |
+| K2 | "slowest around 18:30" was fixed text; it now names the longest spoke (13:30 for the example) | `PlanPage.tsx` | DET-06 | Fixed in `a3557be` |
+| K3 | On desktop the hour chart beside the dial was cut off at the panel's edge; it now sits under the dial | `plan.css` | DET-06 | Fixed in `a3557be` |
+| K4 | Shared planner links lost `&option=` (the list opened instead of the journey) and `modes=bus` | `PlanPage.tsx` | RES-10 | Fixed in `a3557be` |
+| K5 | "Read the full validation report…" and "Send feedback" pointed to github.com/Shyamistic/Naadi before it had any content, so they answered 404 | `AccuracyPage.tsx`, `DocumentPages.tsx` | ACC-04, DOC-05 | Fixed when the repository was published (23 Nov) |
+| K6 | No message when there was no bus option, and with metro off the planner crashed ("Something went wrong") because the API's no-journey answer had a reduced query block | `PlanPage.tsx`, `naadi/api.py` | RES-12 | Fixed in `a3557be` and `83c2cb2` |
 | K7 | Some text on Live buses, Route and Stop pages is still English in Hindi mode: "towards", "Share", "Typical wait about … min", "No service now", "End-to-end minutes", "Buses per hour", "From … · DTC", the Live map hint, bus counts | Those pages' components | HI-03 | Open |
 | K8 | The dial and "Quieter at" always show HH:30, even when you leave at another minute; the values are worked out at your own departure minute | `PlanPage.tsx`, `SamayChakra.tsx` | DET-04 | Open |
 | K9 | Around midday, "leave now" answers can include first waits of 20 to 45 min when no bus is near the boarding stop, and often show one option carrying all three labels. This may be right; compare with the stop's board before filing | Live planning | DET-09 | Watch |
 | K10 | With the same start and destination, "Find buses" stays inactive without saying why ("Start and destination are the same place" exists but isn't shown) | `PlanPage.tsx` | PLAN-09 | Open |
 | K11 | Sharing a journey that starts at "My location" puts your coordinates in the link, without the planned warning ("This link includes your start location" exists but isn't shown) | `PlanPage.tsx` | PRIV-05 | Open |
 | K12 | The nightly data refresh isn't running: 17 to 22 Nov are recorded but not processed. Users don't see this; the model uses October history plus the live feed | `scripts\daily_refresh.py`, Windows Task Scheduler | — | Open |
-| K13 | The quieter-hour box and the dial disagreed by a minute ("9 min less" against "8 min faster") | `PlanPage.tsx` | DET-01, DET-06 | Fixed in `7bb8f44` |
+| K13 | The quieter-hour box and the dial disagreed by a minute ("9 min less" against "8 min faster") | `PlanPage.tsx` | DET-01, DET-06 | Fixed in `cf75acf` |
 
 ## 13. Recording results
 
@@ -443,7 +443,7 @@ Copy this table into a spreadsheet, one row per test and device:
 
 | ID | Build | Device and browser | Language and theme | Date and time (IST) | Result | Notes | Screenshot or bug |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| SM-01 | 7bb8f44 | Chrome 1xx, Windows 11, 1920 × 1080 | English, light | 23 Nov 16:10 | Pass | | |
+| SM-01 | cf75acf | Chrome 1xx, Windows 11, 1920 × 1080 | English, light | 23 Nov 16:10 | Pass | | |
 
 Result is one of Pass, Fail, Blocked (couldn't run it), or Known issue Kn.
 

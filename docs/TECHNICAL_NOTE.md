@@ -1,6 +1,6 @@
 # Naadi: technical note
 
-Problem 1, Transport Stack Hackathon 2026: a bus travel-time model and a journey planner for Delhi. Updated 23 Nov 2026 (web build `7bb8f44`).
+Problem 1, Transport Stack Hackathon 2026: a bus travel-time model and a journey planner for Delhi. Updated 23 Nov 2026 (web build `cf75acf`).
 
 Naadi (नाड़ी, "pulse") reads Delhi's traffic from its buses. It learns how long each stretch of each route takes at every hour from 31 days of bus GPS, corrects that with what buses are doing right now, measures waits from the gaps between the buses that really came, and plans door-to-door journeys on those times. This note covers the three topics the brief asks for (§2 to §4), then waiting and routing, uncertainty, the live city view, serving, and the limits. Results are in the [validation report](VALIDATION_REPORT.md).
 
