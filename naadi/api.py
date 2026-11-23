@@ -495,7 +495,8 @@ def _arrive_by(frm: str, to: str, arrive: str, options: int, modes: str):
         result["options"] = selected
         result["multimodal_options"] = selected_mm
     else:
-        result = {"query": {"arrive_by": iso(target)}, "options": [], "multimodal_options": selected_mm,
+        # The last search left at the deadline itself, so its query block (places, day type, distance) applies.
+        result = {"query": dict(body.get("query", {})), "options": [], "multimodal_options": selected_mm,
                   "message": "No journey reaches the requested arrival time."}
     result.setdefault("query", {})["arrive_by"] = iso(target)
     return result
@@ -554,8 +555,13 @@ def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<
                                                live_wait_factor=S.live_wait_factor if live else 1.0,
                                                modes=search_modes, require_metro=False)
                       if any(l.kind in requested_extension for l in j.legs)]
+    we = int(((math.floor((t_dep + IST_S) / 86400) + 3) % 7) >= 5)
+    # One query block for every answer, with or without options, so clients never need a special case.
+    query = {"from": {"name": o[2], "lat": o[0], "lon": o[1]}, "to": {"name": d[2], "lat": d[0], "lon": d[1]},
+             "depart": iso(t_dep), "day_type": "weekend" if we else "weekday", "live": live,
+             "crow_km": round(float(haversine(o[0], o[1], d[0], d[1])) / 1000, 1), "modes": list(mode_set)}
     if not uniq and not multimodal:
-        return {"query": {"from": o[2], "to": d[2], "depart": iso(t_dep), "modes": list(mode_set)}, "options": [],
+        return {"query": query, "options": [],
                 "message": "No bus journey found within 1 km of both places at this time.", "attribution": ATTRIBUTION,
                 "multimodal_options": [], "multimodal_note": EXTENSION_NOTE if requested_extension and getattr(S, "has_multimodal", False) else None}
     labels = defaultdict(set)
@@ -571,10 +577,7 @@ def journeys(frm: str = Query(..., alias="from", description="'lat,lon', 'stop:<
         mm_labels[min(range(len(multimodal)), key=lambda i: (multimodal[i].walk_m(), multimodal[i].total_s))].add("least_walking")
     mm_out = [journey_json(j, mm_labels[i], live, t_dep, S.tt, o_xy, d_xy, multimodal=True)
               for i, j in enumerate(multimodal)]
-    we = int(((math.floor((t_dep + IST_S) / 86400) + 3) % 7) >= 5)
-    return {"query": {"from": {"name": o[2], "lat": o[0], "lon": o[1]}, "to": {"name": d[2], "lat": d[0], "lon": d[1]},
-                      "depart": iso(t_dep), "day_type": "weekend" if we else "weekday", "live": live,
-                      "crow_km": round(float(haversine(o[0], o[1], d[0], d[1])) / 1000, 1), "modes": list(mode_set)},
+    return {"query": query,
             "options": out, "model": VERSION, "attribution": ATTRIBUTION,
             "notes": "Times are expected door-to-door minutes. Waits use observed bus frequencies and bunching; rides use "
                      "the model's time for that hour. Bus fares show the official cash slab; app fares are shown separately "

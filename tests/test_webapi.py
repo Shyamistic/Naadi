@@ -87,3 +87,19 @@ def test_departures_link_to_their_route():
         route = client.get(f"/routes/{first['route_id']}")
         assert route.status_code == 200 and route.json()["variant"] == first["route_variant"]
         assert client.get("/stops/999999999/departures").status_code == 404
+
+
+@pytest.mark.skipif(not (NET / "network.npz").exists(), reason="built network not present")
+def test_no_journey_answer_keeps_the_query_shape():
+    """An answer without options carries the same query block as any other, so clients need no special case
+    (the web app's results header crashed on the reduced block this replaced)."""
+    from fastapi.testclient import TestClient
+    from naadi.api import app
+
+    with TestClient(app) as client:
+        # Faridabad's southern edge: inside the NCR box, more than 1 km from any bus stop.
+        body = client.get("/journeys?from=28.4089,77.3178&to=28.6315,77.2167&depart=2026-11-24T09:00&modes=bus").json()
+        assert body["options"] == [] and body["message"]
+        query = body["query"]
+        assert {"from", "to", "depart", "day_type", "live", "crow_km", "modes"} <= set(query)
+        assert query["from"]["lat"] == pytest.approx(28.4089) and query["crow_km"] > 20
