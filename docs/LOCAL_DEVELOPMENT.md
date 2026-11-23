@@ -118,7 +118,7 @@ Python, from the repo root:
 
 ```powershell
 $env:NAADI_ROOT = 'C:\Users\shyam.BATCONSOLE\Desktop\transport'
-.venv\Scripts\python.exe -m pytest -q tests     # 39 tests, about one minute
+.venv\Scripts\python.exe -m pytest -q tests     # 46 tests, about one minute
 ```
 
 Web, from `web\`:
@@ -129,10 +129,24 @@ npm run test          # Vitest unit tests
 npm run build         # typecheck, production build into web\dist, bundle-size budget check
 npx vite preview --host 127.0.0.1 --port 4173 --strictPort   # serve web\dist
 npm run e2e           # Playwright in Chrome; builds and previews on port 4173; most specs mock the API
+npm run e2e:live      # tests tagged @live, on real data through vite preview and the live API
 npm run screens       # release screenshots against a real API on port 8020
 ```
 
-Browser test state on 22 Nov 2026: 20 tests pass on desktop and phone. Ten screen-contract tests in `e2e\features.spec.ts` fail, for the live, stop, route and journey screens on both viewports and road speeds on phones: with the mocked API those pages render no page heading. They fail the same way on the 21 Nov build. A further 23 planned tests are marked `fixme`.
+To run the `@live` tests against a deployed site as it is, with no local build: `$env:NAADI_BASE_URL='https://13-235-147-97.sslip.io'; npx playwright test -c playwright.live.config.ts`.
+
+What the browser tests cover (23 Nov 2026: 60 pass on desktop and phone, 23 planned tests marked `fixme`):
+
+| Spec | Checks |
+|---|---|
+| `smoke`, `layout`, `a11y`, `inventory` | the shell and map load, settings persist, no horizontal overflow, axe accessibility, every control has a test id |
+| `features` | every screen shows its heading with data loaded (fixture API in `e2e\support\mockData.ts`) |
+| `requests` | each screen sends a bounded number of API requests while it stays open, on loaded and failing data; the live → route → stop → live → road speeds path; recovery from 429 with no reload |
+| `live-flows` (`@live`) | the same screens and paths on real data, in English and Hindi: no 429 or 5xx, no page errors, no screen that keeps re-fetching |
+
+`web\src\api\client.test.ts` (Vitest) covers the API client's guards: shared requests, the token bucket and waiting out a 429.
+
+Checks that need a person (real phones and GPUs, location, installing the app, screen readers, plausibility of the times) are in `docs\MANUAL_TESTING.md`, with a 10-minute smoke test to run after every deploy.
 
 **Real-browser page check** (gitignored helper, run from the repo root):
 
