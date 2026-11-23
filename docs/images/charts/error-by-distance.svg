@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="380" viewBox="0 0 820 380" font-family="Noto Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" role="img">
+<rect x="0.5" y="0.5" width="819" height="379" rx="14" fill="#FFFFFF" stroke="#E3E5E8"/>
+<text x="28.0" y="40.0" font-size="19" fill="#111827" font-weight="700" text-anchor="start" >The error grows with distance ahead, Naadi&#x27;s half as fast</text>
+<text x="28.0" y="64.0" font-size="13" fill="#4B5563" font-weight="400" text-anchor="start" >Mean error in seconds by how many stops ahead the bus is, held-out 26 to 31 Oct 2026.</text>
+<rect x="28" y="84" width="12" height="12" rx="2" fill="#1A3A8F"/><text x="46.0" y="95.0" font-size="12.5" fill="#111827" font-weight="400" text-anchor="start" >Naadi (history + live)</text>
+<rect x="214" y="84" width="12" height="12" rx="2" fill="#E8730C"/><text x="232.0" y="95.0" font-size="12.5" fill="#111827" font-weight="400" text-anchor="start" >Published timetable</text>
+<line x1="80" x2="790" y1="320.0" y2="320.0" stroke="#E3E5E8"/>
+<text x="70.0" y="324.0" font-size="12" fill="#4B5563" font-weight="400" text-anchor="end" >0 s</text>
+<line x1="80" x2="790" y1="259.7" y2="259.7" stroke="#E3E5E8"/>
+<text x="70.0" y="263.7" font-size="12" fill="#4B5563" font-weight="400" text-anchor="end" >200 s</text>
+<line x1="80" x2="790" y1="199.4" y2="199.4" stroke="#E3E5E8"/>
+<text x="70.0" y="203.4" font-size="12" fill="#4B5563" font-weight="400" text-anchor="end" >400 s</text>
+<line x1="80" x2="790" y1="139.2" y2="139.2" stroke="#E3E5E8"/>
+<text x="70.0" y="143.2" font-size="12" fill="#4B5563" font-weight="400" text-anchor="end" >600 s</text>
+<rect x="111.5" y="308.1" width="52.5" height="11.9" rx="4" fill="#1A3A8F"/>
+<text x="137.8" y="302.1" font-size="12.5" fill="#111827" font-weight="700" text-anchor="middle" >39</text>
+<rect x="169.2" y="297.2" width="52.5" height="22.8" rx="4" fill="#E8730C"/>
+<text x="195.5" y="291.2" font-size="12.5" fill="#111827" font-weight="400" text-anchor="middle" >75</text>
+<text x="165.8" y="342.0" font-size="13" fill="#111827" font-weight="600" text-anchor="middle" >1-2 stops</text>
+<rect x="286.5" y="294.9" width="52.5" height="25.1" rx="4" fill="#1A3A8F"/>
+<text x="312.8" y="288.9" font-size="12.5" fill="#111827" font-weight="700" text-anchor="middle" >83</text>
+<rect x="344.2" y="269.1" width="52.5" height="50.9" rx="4" fill="#E8730C"/>
+<text x="370.5" y="263.1" font-size="12.5" fill="#111827" font-weight="400" text-anchor="middle" >169</text>
+<text x="340.8" y="342.0" font-size="13" fill="#111827" font-weight="600" text-anchor="middle" >3-5 stops</text>
+<rect x="461.5" y="270.3" width="52.5" height="49.7" rx="4" fill="#1A3A8F"/>
+<text x="487.8" y="264.3" font-size="12.5" fill="#111827" font-weight="700" text-anchor="middle" >165</text>
+<rect x="519.2" y="216.0" width="52.5" height="104.0" rx="4" fill="#E8730C"/>
+<text x="545.5" y="210.0" font-size="12.5" fill="#111827" font-weight="400" text-anchor="middle" >345</text>
+<text x="515.8" y="342.0" font-size="13" fill="#111827" font-weight="600" text-anchor="middle" >8-12 stops</text>
+<rect x="636.5" y="228.0" width="52.5" height="92.0" rx="4" fill="#1A3A8F"/>
+<text x="662.8" y="222.0" font-size="12.5" fill="#111827" font-weight="700" text-anchor="middle" >305</text>
+<rect x="694.2" y="130.0" width="52.5" height="190.0" rx="4" fill="#E8730C"/>
+<text x="720.5" y="124.0" font-size="12.5" fill="#111827" font-weight="400" text-anchor="middle" >630</text>
+<text x="690.8" y="342.0" font-size="13" fill="#111827" font-weight="600" text-anchor="middle" >16-30 stops</text>
+</svg>

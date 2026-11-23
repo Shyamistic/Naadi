@@ -118,7 +118,7 @@ Python, from the repo root:
 
 ```powershell
 $env:NAADI_ROOT = 'C:\Users\shyam.BATCONSOLE\Desktop\transport'
-.venv\Scripts\python.exe -m pytest -q tests     # 46 tests, about one minute
+.venv\Scripts\python.exe -m pytest -q tests     # 47 tests, about one minute
 ```
 
 Web, from `web\`:
@@ -175,7 +175,7 @@ On the project laptop, `data\` already exists in the main checkout (about 20 GB)
 
 | Symptom | Cause and fix |
 | --- | --- |
-| A page stays on "Loading Naadi…" | Fixed on 22 Nov: the splash was only removed by the map, so pages without a map stayed covered. If it comes back, open the console and run `document.getElementById('splash')`; see `research\08-audit-and-roadmap-2026-11-22.md` §4 |
+| A page stays on "Loading Naadi…" | Fixed on 22 Nov: the splash was only removed by the map, so pages without a map stayed covered. If it comes back, open the console and run `document.getElementById('splash')`: the shell (`web\src\app\splash.ts`, `AppShell.tsx`) hides it on pages without a map, and `MapHost.tsx` once the map is ready |
 | `/api/...` returns HTML in dev | `NAADI_API_TARGET` points at a website root rather than the API. Use `https://13-235-147-97.sslip.io/api` for the live server, or `http://127.0.0.1:8010` locally |
 | The API can't find artefacts | Run it from the main checkout, or set `NAADI_ROOT` to it |
 | No live buses locally | The recorder isn't running, or `data\live\latest.pb` is stale |

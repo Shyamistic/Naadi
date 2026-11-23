@@ -1,372 +1,925 @@
 {
- "openapi": "3.1.0",
- "info": {
-  "title": "Naadi API",
-  "description": "Delhi bus travel-time model and journey planner built on the Delhi Transport Stack. Times come from 31 days of real bus GPS (Oct 2026) plus a live nowcast. Bus data: Delhi Transport Stack (delhi.transportstack.in) and Delhi Open Transit Data (Department of Transport, GNCTD; IIIT-Delhi). Map data: OpenStreetMap contributors.",
-  "version": "1.0"
- },
- "paths": {
-  "/health": {
-   "get": {
-    "summary": "Health",
-    "operationId": "health_health_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Naadi API",
+    "description": "Delhi bus travel-time model and journey planner built on the Delhi Transport Stack. Times come from 31 days of real bus GPS (Oct 2026) plus a live nowcast. Bus data: Delhi Transport Stack (delhi.transportstack.in) and Delhi Open Transit Data (Department of Transport, GNCTD; IIIT-Delhi). Map data: OpenStreetMap contributors.",
+    "version": "1.0"
   },
-  "/stops/search": {
-   "get": {
-    "summary": "Stops Search",
-    "operationId": "stops_search_stops_search_get",
-    "parameters": [
-     {
-      "name": "q",
-      "in": "query",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "minLength": 2,
-       "maxLength": 80,
-       "title": "Q"
-      }
-     },
-     {
-      "name": "limit",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "maximum": 25,
-       "minimum": 1,
-       "default": 8,
-       "title": "Limit"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+  "paths": {
+    "/trails/index": {
+      "get": {
+        "tags": [
+          "trails"
+        ],
+        "summary": "Trail Index",
+        "operationId": "trail_index_trails_index_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
         }
-       }
       }
-     }
-    }
-   }
-  },
-  "/journeys": {
-   "get": {
-    "summary": "Journeys",
-    "operationId": "journeys_journeys_get",
-    "parameters": [
-     {
-      "name": "from",
-      "in": "query",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "description": "'lat,lon', 'stop:<id>' or a stop name",
-       "title": "From"
-      },
-      "description": "'lat,lon', 'stop:<id>' or a stop name"
-     },
-     {
-      "name": "to",
-      "in": "query",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "description": "'lat,lon', 'stop:<id>' or a stop name",
-       "title": "To"
-      },
-      "description": "'lat,lon', 'stop:<id>' or a stop name"
-     },
-     {
-      "name": "depart",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "anyOf": [
-        {
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ],
-       "description": "'now' (default) or ISO time in IST, e.g. 2026-11-17T08:30",
-       "title": "Depart"
-      },
-      "description": "'now' (default) or ISO time in IST, e.g. 2026-11-17T08:30"
-     },
-     {
-      "name": "options",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "integer",
-       "maximum": 5,
-       "minimum": 1,
-       "default": 3,
-       "title": "Options"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/stops/{stop_id}/departures": {
-   "get": {
-    "summary": "Departures",
-    "operationId": "departures_stops__stop_id__departures_get",
-    "parameters": [
-     {
-      "name": "stop_id",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "integer",
-       "title": "Stop Id"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/vehicles": {
-   "get": {
-    "summary": "Vehicles",
-    "operationId": "vehicles_vehicles_get",
-    "parameters": [
-     {
-      "name": "min_lat",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "number",
-       "default": 28.15,
-       "title": "Min Lat"
-      }
-     },
-     {
-      "name": "max_lat",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "number",
-       "default": 29.4,
-       "title": "Max Lat"
-      }
-     },
-     {
-      "name": "min_lon",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "number",
-       "default": 76.55,
-       "title": "Min Lon"
-      }
-     },
-     {
-      "name": "max_lon",
-      "in": "query",
-      "required": false,
-      "schema": {
-       "type": "number",
-       "default": 77.75,
-       "title": "Max Lon"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/speeds/cells": {
-   "get": {
-    "summary": "Speeds",
-    "operationId": "speeds_speeds_cells_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/accuracy": {
-   "get": {
-    "summary": "Accuracy",
-    "operationId": "accuracy_accuracy_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  },
-  "/about": {
-   "get": {
-    "summary": "About",
-    "operationId": "about_about_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     }
-    }
-   }
-  }
- },
- "components": {
-  "schemas": {
-   "HTTPValidationError": {
-    "properties": {
-     "detail": {
-      "items": {
-       "$ref": "#/components/schemas/ValidationError"
-      },
-      "type": "array",
-      "title": "Detail"
-     }
     },
-    "type": "object",
-    "title": "HTTPValidationError"
-   },
-   "ValidationError": {
-    "properties": {
-     "loc": {
-      "items": {
-       "anyOf": [
-        {
-         "type": "string"
-        },
-        {
-         "type": "integer"
+    "/trails/{day_type}/{hour}": {
+      "get": {
+        "tags": [
+          "trails"
+        ],
+        "summary": "Trail Chunk",
+        "operationId": "trail_chunk_trails__day_type___hour__get",
+        "parameters": [
+          {
+            "name": "day_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Day Type"
+            }
+          },
+          {
+            "name": "hour",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Hour"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
         }
-       ]
-      },
-      "type": "array",
-      "title": "Location"
-     },
-     "msg": {
-      "type": "string",
-      "title": "Message"
-     },
-     "type": {
-      "type": "string",
-      "title": "Error Type"
-     },
-     "input": {
-      "title": "Input"
-     },
-     "ctx": {
-      "type": "object",
-      "title": "Context"
-     }
+      }
     },
-    "type": "object",
-    "required": [
-     "loc",
-     "msg",
-     "type"
-    ],
-    "title": "ValidationError"
-   }
-  }
- },
- "servers": [
-  {
-   "url": "https://13-235-147-97.sslip.io/api"
-  }
- ]
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stops/search": {
+      "get": {
+        "summary": "Stops Search",
+        "operationId": "stops_search_stops_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 25,
+              "minimum": 1,
+              "default": 8,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/journeys": {
+      "get": {
+        "summary": "Journeys",
+        "operationId": "journeys_journeys_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "'lat,lon', 'stop:<id>' or a stop name",
+              "title": "From"
+            },
+            "description": "'lat,lon', 'stop:<id>' or a stop name"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "'lat,lon', 'stop:<id>' or a stop name",
+              "title": "To"
+            },
+            "description": "'lat,lon', 'stop:<id>' or a stop name"
+          },
+          {
+            "name": "depart",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'now' (default) or ISO time in IST, e.g. 2026-11-17T08:30",
+              "title": "Depart"
+            },
+            "description": "'now' (default) or ISO time in IST, e.g. 2026-11-17T08:30"
+          },
+          {
+            "name": "arrive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO arrival deadline with timezone offset",
+              "title": "Arrive"
+            },
+            "description": "ISO arrival deadline with timezone offset"
+          },
+          {
+            "name": "options",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5,
+              "minimum": 1,
+              "default": 3,
+              "title": "Options"
+            }
+          },
+          {
+            "name": "modes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "bus,metro,rail,shared_auto",
+              "title": "Modes"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stops/{stop_id}/departures": {
+      "get": {
+        "summary": "Departures",
+        "operationId": "departures_stops__stop_id__departures_get",
+        "parameters": [
+          {
+            "name": "stop_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Stop Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vehicles": {
+      "get": {
+        "summary": "Vehicles",
+        "operationId": "vehicles_vehicles_get",
+        "parameters": [
+          {
+            "name": "min_lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 28.15,
+              "title": "Min Lat"
+            }
+          },
+          {
+            "name": "max_lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 29.4,
+              "title": "Max Lat"
+            }
+          },
+          {
+            "name": "min_lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 76.55,
+              "title": "Min Lon"
+            }
+          },
+          {
+            "name": "max_lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 77.75,
+              "title": "Max Lon"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/speeds/cells": {
+      "get": {
+        "summary": "Speeds",
+        "operationId": "speeds_speeds_cells_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accuracy": {
+      "get": {
+        "summary": "Accuracy",
+        "operationId": "accuracy_accuracy_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/about": {
+      "get": {
+        "summary": "About",
+        "operationId": "about_about_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/get_multi_modal": {
+      "get": {
+        "summary": "Get Multi Modal",
+        "operationId": "get_multi_modal_v2_get_multi_modal_get",
+        "parameters": [
+          {
+            "name": "src",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Src"
+            }
+          },
+          {
+            "name": "src_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "place",
+              "title": "Src Type"
+            }
+          },
+          {
+            "name": "dst",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dst"
+            }
+          },
+          {
+            "name": "dst_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "place",
+              "title": "Dst Type"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "multi",
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "summary": "Capabilities",
+        "operationId": "capabilities_capabilities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stops/all": {
+      "get": {
+        "summary": "Stops All",
+        "operationId": "stops_all_stops_all_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stops/nearby": {
+      "get": {
+        "summary": "Stops Nearby",
+        "operationId": "stops_nearby_stops_nearby_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "radius_m",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1500,
+              "minimum": 50,
+              "default": 500,
+              "title": "Radius M"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/routes/search": {
+      "get": {
+        "summary": "Routes Search",
+        "operationId": "routes_search_routes_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 8,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/routes/{route_id}": {
+      "get": {
+        "summary": "Route Detail",
+        "operationId": "route_detail_routes__route_id__get",
+        "parameters": [
+          {
+            "name": "route_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Route Id"
+            }
+          },
+          {
+            "name": "day_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day Type"
+            }
+          },
+          {
+            "name": "hour",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 23,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/live/buses": {
+      "get": {
+        "summary": "Live Buses",
+        "operationId": "live_buses_live_buses_get",
+        "parameters": [
+          {
+            "name": "route_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Route Id"
+            }
+          },
+          {
+            "name": "min_lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 28.15,
+              "title": "Min Lat"
+            }
+          },
+          {
+            "name": "max_lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 29.4,
+              "title": "Max Lat"
+            }
+          },
+          {
+            "name": "min_lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 76.55,
+              "title": "Min Lon"
+            }
+          },
+          {
+            "name": "max_lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 77.75,
+              "title": "Max Lon"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/legs/next-buses": {
+      "get": {
+        "summary": "Next Buses",
+        "operationId": "next_buses_legs_next_buses_get",
+        "parameters": [
+          {
+            "name": "board",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Board"
+            }
+          },
+          {
+            "name": "alight",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Alight"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pulse": {
+      "get": {
+        "summary": "Pulse",
+        "description": "Delhi right now: buses reporting, bus travel time against a usual day at this hour, and the slowest stretches.",
+        "operationId": "pulse_pulse_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://13-235-147-97.sslip.io/api",
+      "description": "Live API"
+    }
+  ]
 }

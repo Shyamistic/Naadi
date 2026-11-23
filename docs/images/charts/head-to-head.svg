@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="410" viewBox="0 0 820 410" font-family="Noto Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" role="img">
+<rect x="0.5" y="0.5" width="819" height="409" rx="14" fill="#FFFFFF" stroke="#E3E5E8"/>
+<text x="28.0" y="40.0" font-size="19" fill="#111827" font-weight="700" text-anchor="start" >Head to head on trips that really happened</text>
+<text x="28.0" y="64.0" font-size="13" fill="#4B5563" font-weight="400" text-anchor="start" >Mean error in minutes, each planner&#x27;s answer followed on the buses that ran. Lower is better.</text>
+<text x="155.3" y="104.0" font-size="15" fill="#111827" font-weight="700" text-anchor="middle" >Door to door</text>
+<text x="155.3" y="122.0" font-size="12.5" fill="#4B5563" font-weight="400" text-anchor="middle" >vs a timetable planner</text>
+<rect x="77.3" y="256.2" width="70" height="63.8" rx="5" fill="#1A3A8F"/>
+<text x="112.3" y="248.2" font-size="16" fill="#111827" font-weight="700" text-anchor="middle" >15.5</text>
+<text x="112.3" y="340.0" font-size="12" fill="#111827" font-weight="600" text-anchor="middle" >Naadi</text>
+<rect x="163.3" y="225.9" width="70" height="94.1" rx="5" fill="#E8730C"/>
+<text x="198.3" y="217.9" font-size="16" fill="#111827" font-weight="700" text-anchor="middle" >22.9</text>
+<text x="198.3" y="340.0" font-size="12" fill="#111827" font-weight="400" text-anchor="middle" >Timetable planner</text>
+<text x="155.3" y="364.0" font-size="11.5" fill="#4B5563" font-weight="400" text-anchor="middle" >3,598 journeys, 29–31 Oct</text>
+<text x="410.0" y="104.0" font-size="15" fill="#111827" font-weight="700" text-anchor="middle" >Google Maps</text>
+<text x="410.0" y="122.0" font-size="12.5" fill="#4B5563" font-weight="400" text-anchor="middle" >bus directions, replayed</text>
+<rect x="332.0" y="269.6" width="70" height="50.4" rx="5" fill="#1A3A8F"/>
+<text x="367.0" y="261.6" font-size="16" fill="#111827" font-weight="700" text-anchor="middle" >12.3</text>
+<text x="367.0" y="340.0" font-size="12" fill="#111827" font-weight="600" text-anchor="middle" >Naadi</text>
+<rect x="418.0" y="170.0" width="70" height="150.0" rx="5" fill="#A3ACB9"/>
+<text x="453.0" y="162.0" font-size="16" fill="#111827" font-weight="700" text-anchor="middle" >36.5</text>
+<text x="453.0" y="340.0" font-size="12" fill="#111827" font-weight="400" text-anchor="middle" >Google Maps</text>
+<text x="410.0" y="364.0" font-size="11.5" fill="#4B5563" font-weight="400" text-anchor="middle" >91 trips, 15–16 Nov</text>
+<line x1="282.7" x2="282.7" y1="96" y2="370" stroke="#E3E5E8"/>
+<text x="664.7" y="104.0" font-size="15" fill="#111827" font-weight="700" text-anchor="middle" >ETA Calculator</text>
+<text x="664.7" y="122.0" font-size="12.5" fill="#4B5563" font-weight="400" text-anchor="middle" >the organisers&#x27; service</text>
+<rect x="586.7" y="289.7" width="70" height="30.3" rx="5" fill="#1A3A8F"/>
+<text x="621.7" y="281.7" font-size="16" fill="#111827" font-weight="700" text-anchor="middle" >7.4</text>
+<text x="621.7" y="340.0" font-size="12" fill="#111827" font-weight="600" text-anchor="middle" >Naadi</text>
+<rect x="672.7" y="280.2" width="70" height="39.8" rx="5" fill="#A3ACB9"/>
+<text x="707.7" y="272.2" font-size="16" fill="#111827" font-weight="700" text-anchor="middle" >9.7</text>
+<text x="707.7" y="340.0" font-size="12" fill="#111827" font-weight="400" text-anchor="middle" >ETA Calculator</text>
+<text x="664.7" y="364.0" font-size="11.5" fill="#4B5563" font-weight="400" text-anchor="middle" >9,616 answers, 15–16 Nov</text>
+<line x1="537.3" x2="537.3" y1="96" y2="370" stroke="#E3E5E8"/>
+<text x="28.0" y="394.0" font-size="12" fill="#4B5563" font-weight="400" text-anchor="start" >Naadi&#x27;s mean error is lower in all three; the Google and ETA Calculator samples cover two November days.</text>
+</svg>

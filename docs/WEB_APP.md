@@ -4,18 +4,20 @@ Naadi is a responsive Delhi journey planner for measured bus travel times. It us
 
 ## Screens
 
-- **Plan:** search Delhi stops, Photon places, route numbers, saved places, example journey, leave-now and depart-at planning, and bus/metro mode selection.
-- **Results:** separate validated bus results from schedule-estimated metro options, with fares, uncertainty, live status, alternatives, and quieter-hour comparisons.
-- **Journey detail:** numbered walking and riding legs, route geometry on the map, SamayChakra hourly dial, time range, fare, and next-bus evidence.
+- **Plan:** search Delhi stops, Photon places, route numbers, saved places, example journey, leave-now and depart-at planning, and bus/metro mode selection. The "Delhi right now" card compares live bus travel times with an ordinary October day at the same hour and lists the slowest stretches; the map glows where buses are.
+- **Results:** separate validated bus results from schedule-estimated metro options, with fares, uncertainty, live status, alternatives, and quieter-hour comparisons. A clear message when no bus option exists.
+- **Journey detail:** numbered walking and riding legs, route geometry on the map with a bus (or train) driving the route, SamayChakra hourly dial, time range, fare, and next-bus evidence. Shared links (`&option=bus-0`) open the same journey.
 - **Stop:** stop location, live and typical departures, filtering, and links back to planning.
 - **Route:** direction, stop sequence, current-hour statistics, weekday/weekend charts, and live buses.
-- **Live buses:** privacy-safe fleet map, route filtering, clustering, and live refresh.
+- **Live buses:** privacy-safe fleet map, route filtering, clustering, bus icons facing their direction of travel from zoom 14 and 3D buses from zoom 16, and live refresh.
 - **Road speeds:** speed cells, 3D columns, weekday/weekend curves, hour controls, and real matched GPS trails for play-the-day.
 - **Accuracy:** validation summaries and links to the validation report.
 - **About, Privacy, Help, Settings, Accessibility, Terms:** project attribution, Photon and map privacy notes, usage guidance, display preferences, accessibility controls, and terms.
 - **404:** a clear recovery link back to planning.
 
 The header provides English/Hindi language selection and light/dark themes. Settings also controls text size, reduced motion, saved places, and reset behavior. The app is installable as a PWA and avoids caching API responses.
+
+Data fetching goes through TanStack Query and one API client (`src/api/client.ts`). The client shares identical requests in flight, throttles a tab to a burst of 40 requests and then 4 a second, and after an HTTP 429 waits out the server's `Retry-After` with a "Naadi is busy" notice, so screens recover without a reload. Screens that need their data retry on their own every 30 s after a failure.
 
 ## Run locally
 
@@ -49,11 +51,12 @@ npm run e2e -- smoke.spec.ts --project=desktop
 npm run e2e -- inventory.spec.ts
 npm run e2e -- layout.spec.ts
 npm run e2e -- a11y.spec.ts
-npm run screens
+npm run e2e -- requests.spec.ts
+npm run e2e:live
 ```
 
-The production build runs the bundle check. It verifies the main chunk contains no deck.gl symbols and enforces the JavaScript and CSS budgets. Use `npm run e2e:live` for the live API acceptance configuration after starting the local API and Vite proxy.
+The production build runs the bundle check. It verifies the main chunk contains no deck.gl symbols and enforces the JavaScript and CSS budgets. `requests.spec.ts` counts the API requests each screen sends while it stays open, and `npm run e2e:live` runs the real-data checks (set `NAADI_BASE_URL` to test a deployed site).
 
-## Release screenshots
+## Screenshots
 
-Final real-Chrome screenshots are stored in `.agents/tasks/web-rebuild/screenshots/release/`. The set covers desktop (`1440x900`) and phone (`390x844`) views, light and dark themes, English and Hindi, with real API data. The screenshot index in that directory records the screen, viewport, theme, language, and interaction used for each capture.
+The README's screenshots are in `docs/images/`, taken after real interaction with real data: desktop at 1440 × 900, phone at 390 × 844, light and dark, English and Hindi, plus a Road speeds GIF. To retake them, build, start `vite preview` with `/api` proxied to the live API, run `node scripts/readme-shots.mjs` from `web/`, then `python scripts/build_docs_figures.py --images` from the repo root.

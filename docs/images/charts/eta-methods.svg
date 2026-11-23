@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="448" viewBox="0 0 820 448" font-family="Noto Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" role="img">
+<rect x="0.5" y="0.5" width="819" height="447" rx="14" fill="#FFFFFF" stroke="#E3E5E8"/>
+<text x="28.0" y="40.0" font-size="19" fill="#111827" font-weight="700" text-anchor="start" >Bus arrival at a stop, 1 to 30 stops ahead</text>
+<text x="28.0" y="64.0" font-size="13" fill="#4B5563" font-weight="400" text-anchor="start" >Mean error in seconds on 1,987,389 held-out predictions (26 to 31 Oct 2026). Lower is better.</text>
+<text x="28.0" y="117.0" font-size="13.5" fill="#111827" font-weight="700" text-anchor="start" >Naadi (history + live nowcast)</text>
+<rect x="358" y="103" width="156.9" height="20" rx="4" fill="#1A3A8F"/>
+<text x="522.9" y="118.0" font-size="13" fill="#111827" font-weight="700" text-anchor="start" >133.3 s</text>
+<text x="28.0" y="151.0" font-size="13.5" fill="#111827" font-weight="400" text-anchor="start" >Recent live buses only</text>
+<rect x="358" y="137" width="185.0" height="20" rx="4" fill="#A3ACB9"/>
+<text x="551.0" y="152.0" font-size="13" fill="#111827" font-weight="400" text-anchor="start" >157.2 s</text>
+<text x="28.0" y="185.0" font-size="13.5" fill="#111827" font-weight="400" text-anchor="start" >Log-normal Kalman filter (published method)</text>
+<rect x="358" y="171" width="191.9" height="20" rx="4" fill="#A3ACB9"/>
+<text x="557.9" y="186.0" font-size="13" fill="#111827" font-weight="400" text-anchor="start" >163.1 s</text>
+<text x="28.0" y="219.0" font-size="13.5" fill="#111827" font-weight="400" text-anchor="start" >LightGBM history only</text>
+<rect x="358" y="205" width="194.8" height="20" rx="4" fill="#A3ACB9"/>
+<text x="560.8" y="220.0" font-size="13" fill="#111827" font-weight="400" text-anchor="start" >165.5 s</text>
+<text x="28.0" y="253.0" font-size="13.5" fill="#111827" font-weight="400" text-anchor="start" >Empirical-Bayes history</text>
+<rect x="358" y="239" width="198.6" height="20" rx="4" fill="#A3ACB9"/>
+<text x="564.6" y="254.0" font-size="13" fill="#111827" font-weight="400" text-anchor="start" >168.8 s</text>
+<text x="28.0" y="287.0" font-size="13.5" fill="#111827" font-weight="400" text-anchor="start" >Historical average by stretch and hour</text>
+<rect x="358" y="273" width="203.7" height="20" rx="4" fill="#A3ACB9"/>
+<text x="569.7" y="288.0" font-size="13" fill="#111827" font-weight="400" text-anchor="start" >173.1 s</text>
+<text x="28.0" y="321.0" font-size="13.5" fill="#111827" font-weight="400" text-anchor="start" >City-wide speed curve</text>
+<rect x="358" y="307" width="276.7" height="20" rx="4" fill="#A3ACB9"/>
+<text x="642.7" y="322.0" font-size="13" fill="#111827" font-weight="400" text-anchor="start" >235.1 s</text>
+<text x="28.0" y="355.0" font-size="13.5" fill="#111827" font-weight="700" text-anchor="start" >Published timetable</text>
+<rect x="358" y="341" width="322.0" height="20" rx="4" fill="#E8730C"/>
+<text x="688.0" y="356.0" font-size="13" fill="#111827" font-weight="700" text-anchor="start" >273.6 s</text>
+<text x="28.0" y="389.0" font-size="13.5" fill="#111827" font-weight="400" text-anchor="start" >The bus&#x27;s own recent speed</text>
+<rect x="358" y="375" width="330.0" height="20" rx="4" fill="#A3ACB9"/>
+<text x="696.0" y="390.0" font-size="13" fill="#111827" font-weight="400" text-anchor="start" >280.4 s</text>
+<text x="28.0" y="430.0" font-size="12" fill="#4B5563" font-weight="400" text-anchor="start" >Naadi is 23.9 s better than the next best method (95% interval 23.4 to 24.5 s); the published timetable is off by 274 s.</text>
+</svg>

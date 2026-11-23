@@ -1,6 +1,6 @@
 # Naadi manual testing guide
 
-Written Mon 23 Nov 2026 for web build `cd56a9d`. Live site: https://13-235-147-97.sslip.io/
+Written Mon 23 Nov 2026 for web build `7bb8f44`. Live site: https://13-235-147-97.sslip.io/
 
 This guide is for testing the live site by hand. It covers what the automated tests can't judge: how the app looks on real screens, whether the times are plausible to someone who rides these buses, real phones and GPUs, real location, installing the app, screen readers, and how the app behaves over minutes on a real network.
 
@@ -14,7 +14,7 @@ This guide is for testing the live site by hand. It covers what the automated te
 
 | Suite | Where | What it checks |
 | --- | --- | --- |
-| Python, 46 tests | `tests\` | Router and model logic, API endpoints, the rate limiter, route links on departures, fares, walking, trails, the pulse |
+| Python, 47 tests | `tests\` | Router and model logic, API endpoints, the rate limiter, route links on departures, fares, walking, trails, the pulse |
 | Web unit tests, 7 | `web\src` (Vitest) | Map style; the API client's guards (shared requests, burst limit, waiting out a 429) |
 | Browser tests on a mocked API, 60 | `web\e2e`, desktop and phone | Shell and settings, layout, axe accessibility on key pages, every control has a test id, every screen's heading with data loaded, the number of requests each screen sends, the Live → route → stop path, recovery from 429 |
 | Browser tests on live data, 12 per viewport | `web\e2e\live-flows.spec.ts` | The main screens and the reported Live → route → stop path on real data, in English and Hindi: no 429 or 5xx answers, no page errors, no screen that keeps re-fetching |
@@ -39,7 +39,7 @@ The other suites are in `docs\LOCAL_DEVELOPMENT.md`, "Build and test".
 | API health | https://13-235-147-97.sslip.io/api/health |
 | Published results | https://13-235-147-97.sslip.io/api/accuracy |
 
-1. **Check the build.** Open About → "Version and data" → "Web app build". It should read `cd56a9d 2026-11-22T18:50Z` or later. Write it on your results sheet: every result belongs to a build.
+1. **Check the build.** Open About → "Version and data" → "Web app build". It should read `7bb8f44 2026-11-23T11:09Z` or later. Write it on your results sheet: every result belongs to a build.
 2. **Test live features between 08:00 and 21:00 IST** and note the time of each live test. Bus counts run from about 600 after midnight to about 5,000 at peaks.
 3. **Start clean.** Use a new browser profile or clear the site's data (DevTools → Application → Storage → "Clear site data"), so saved places, recent journeys and settings don't carry over. Private windows can't install the app, so use a normal profile for section 7.
 4. **Tools.** Chrome DevTools (F12): Network (tick "Preserve log", filter `api`), Console (errors), Application (storage), and the throttling menu. Test phones on real devices; DevTools' device mode is only a rough check.
@@ -132,7 +132,7 @@ The other suites are in `docs\LOCAL_DEVELOPMENT.md`, "Build and test".
 | ID | Pri | Steps | Expected |
 | --- | --- | --- | --- |
 | RES-01 | P1 | Look at the top of the results | "Journey options"; "Leaving Tue, 24 Nov, 08:30 · weekday" (or "Leaving now · Live"); "N km apart"; buttons "15 min earlier", "15 min later", "Share", "Refresh"; "About these times"; "See the API answer" |
-| RES-02 | P1 | Read the first bus card | Labels (Fastest, Fewest changes, Least walking); a "Live" or "Typical" badge; the minutes; "Arrive HH:MM" and "usually A–B min"; a bar split into walk, wait and ride; route badges with "or" alternatives and "AC" where most buses are AC; "walk N m · N change · from <stop>"; cash fares with "Fare estimated" or "Fare observed"; the One Delhi app fares; "Quieter at HH:30: N min"; "Timetable says N min"; "Timed from N past bus trips" |
+| RES-02 | P1 | Read the first bus card | Labels (Fastest, Fewest changes, Least walking); a "Live" or "Typical" badge; the minutes; "Arrive HH:MM" and "usually A–B min"; a bar split into walk, wait and ride; route badges with "or" alternatives and "AC" where most buses are AC; "walk N m · N change · from <stop>"; cash fares with "Fare estimated" or "Fare observed"; the One Delhi app fares; "Quieter at HH:30: N min"; "Timetable says N min"; "Timed from N past stop-to-stop bus runs" |
 | RES-03 | P1 | Judge whether the card makes sense | Arrival equals departure plus the total; the range contains the estimate; the routes serve both stops (check on their route pages); the times feel right for the trip and hour. Note anything surprising, with the time you tested |
 | RES-04 | P2 | Click "15 min later", then "15 min earlier" | The departure moves by 15 min and new results load. In "Leaving now" mode, "15 min earlier" is inactive |
 | RES-05 | P2 | Click "Refresh" | The results reload; in live mode the values may change |
@@ -140,9 +140,9 @@ The other suites are in `docs\LOCAL_DEVELOPMENT.md`, "Build and test".
 | RES-07 | P2 | Click "See the API answer" | The raw JSON for the same search: options, legs, fares, `samay_chakra` |
 | RES-08 | P1 | Scroll to "With metro" | Cards with metro line badges (such as the Violet Line), a "Timetable estimate" label, a note that metro, Namo Bharat and shared-auto times are estimates, and fares such as "₹X incl. metro ₹Y" or "Metro fare not known" |
 | RES-09 | P2 | Hover each card in turn | The map highlights that option's route; the others stay light |
-| RES-10 | P1 | Click "Share" and open the link in a new window | A share sheet opens (Windows, Android, iOS) or "Link copied" appears; the link shows the same search. See K4 |
+| RES-10 | P1 | Click "Share" on the results and on a journey, and open each link in a new window | A share sheet opens (Windows, Android, iOS) or "Link copied" appears. Each link reopens the same search; the journey link (`&option=bus-0`) opens that journey, and a link made with metro off stays bus-only |
 | RES-11 | P2 | Click "← Plan a bus journey" | The planner, with both fields kept |
-| RES-12 | P2 | Search the "No bus option" pair from the test data | A clear "No bus journey found" message. Today "By bus" is empty (K6) |
+| RES-12 | P1 | Search the "No bus option" pair from the test data, with metro off and then on | Under "By bus": "No bus journey found" and "Try a nearby bigger stop or another time". With metro off there's no error page (this crashed before 23 Nov); with it on, a metro option may still appear |
 | RES-13 | P2 | Search a very short trip: Gandhi Darshan → Rajghat Gandhi Darshan | No error; record what's suggested |
 | RES-14 | P3 | Search a long trip across Delhi, such as Narela → Badarpur | Results within about 5 s; record the minutes and changes |
 
@@ -150,12 +150,12 @@ The other suites are in `docs\LOCAL_DEVELOPMENT.md`, "Build and test".
 
 | ID | Pri | Steps | Expected |
 | --- | --- | --- | --- |
-| DET-01 | P1 | Click the first card of the example | "69 min · Arrive 09:39"; "All options", "Share" and "Print"; a box "Leaving at 06:30 usually takes 61 min, 9 min less" with "Plan for 06:30"; numbered steps: Start at…, Board 405 towards Badarpur Border (T) at… (Wait about 4 min · Ride 30 min · 17 stops · 7.8 km · Based on 28,691 past trips · cash fare, "free with a Pink Saheli card", app fare), Get off at Delhi Public School, Board 445A…, Get off at…, Walk 195 m (about 4 min) to…, Arrive at Nehru Place Terminal |
+| DET-01 | P1 | Click the first card of the example | "69 min · Arrive 09:39"; "All options", "Share" and "Print"; a box "Leaving at 06:30 usually takes 61 min, 8 min less" with "Plan for 06:30"; numbered steps: Start at…, Board 405 towards Badarpur Border (T) at… (Wait about 4 min · Ride 30 min · 17 stops · 7.8 km · Based on 28,691 past stop-to-stop bus runs · cash fare, "free with a Pink Saheli card", app fare), Get off at Delhi Public School, Board 445A…, Get off at…, Walk 195 m (about 4 min) to…, Arrive at Nehru Place Terminal |
 | DET-02 | P1 | Watch the map | A bus icon drives the route from boarding to arrival, leaving a trail, and loops; on metro legs it's a train |
 | DET-03 | P2 | Click a step | The step is highlighted and the map moves to it |
 | DET-04 | P1 | Scroll to "Every hour of the day"; hover or tap several spokes; with the keyboard, Tab to the dial and press Enter or the arrow keys | The centre shows that hour's minutes and "HH:30"; the line below reads "HH:30 · N min faster" (or slower), with "quietest hour" on the quickest spoke; hours without service show a short grey spoke. Record which keys work |
 | DET-05 | P1 | Click "Plan for 06:30" (in the box or under the dial) | The planner runs again for 06:30 |
-| DET-06 | P2 | Look beside and under the dial | The hour chart is fully visible and "slowest around" names the longest spoke. Today the chart is cut off (K3) and the slowest time always reads 18:30 (K2) |
+| DET-06 | P2 | Look under the dial | The hour chart sits under the dial, fully visible, with the departure hour in blue and the quickest in green. The sentence below names the longest spoke: for the example, "Quickest around 06:30 (61 min); slowest around 13:30 (138 min)." The dial's "N min faster" matches the box at the top |
 | DET-07 | P2 | Read the notes below the dial | The fares note (indicative; Pink Saheli; app tickets 10% less) and "Timetable says 62 min for this trip. Naadi expects 69 min from real buses." |
 | DET-08 | P2 | Under "How we estimate", click "How accurate is Naadi?" | The Accuracy page |
 | DET-09 | P1 | Open a "leave now" pair, then its first card | The boarding step shows "Next buses: <route> in N min · …", updated every 20 s. Open that boarding stop's page: its board should roughly agree |
@@ -419,22 +419,23 @@ Use a browser or PowerShell (`Invoke-RestMethod`). Base address: `https://13-235
 
 ## 12. Known issues (23 Nov 2026)
 
-Mark a failure caused by one of these as "Known issue Kn" rather than filing it again.
+Mark a failure caused by an open issue as "Known issue Kn" rather than filing it again. Fixed issues stay listed so their test cases can be checked as regressions.
 
-| # | Issue | Where | Seen in |
-| --- | --- | --- | --- |
-| K1 | The home subtitle says "Times from 38 million real Delhi bus trips and live GPS" (Hindi: "3.8 करोड़ … बस यात्राओं"). The 38 million are stop-to-stop traversals (README), not trips | `plan.subtitle` in `web\src\features\plan\strings.en.ts` and `strings.hi.ts` | Home page |
-| K2 | "slowest around 18:30" is fixed text; only its minutes are real. For the example the slowest spoke is 13:30 (138 min) | `slowTime: "18:30"` in `web\src\features\plan\PlanPage.tsx` | DET-06 |
-| K3 | On desktop the hour chart beside the dial is cut off at the panel's right edge | `.chakra-layout` in `web\src\features\plan\plan.css` (stacked only below 768 px) | DET-06 |
-| K4 | Shared planner links lose part of their state: `&option=bus-0` opens the list rather than that journey, and `modes=bus` still includes metro, because the automatic search that a link starts ignores both values | The automatic search and `submit()` in `PlanPage.tsx` | RES-10 |
-| K5 | "Read the full validation report…" and "Send feedback" point to github.com/Shyamistic/Naadi, which isn't public yet, so they answer 404 | `AccuracyPage.tsx`, `DocumentPages.tsx` | ACC-04, DOC-05 |
-| K6 | No message when there's no bus option: "By bus" is simply empty ("No bus journey found" exists but isn't used) | `PlanPage.tsx` | RES-12 |
-| K7 | Some text on Live buses, Route and Stop pages is still English in Hindi mode: "towards", "Share", "Typical wait about … min", "No service now", "End-to-end minutes", "Buses per hour", "From … · DTC", the Live map hint, bus counts | Those pages' components | HI-03 |
-| K8 | The dial and "Quieter at" always show HH:30, even when you leave at another minute; the values are worked out at your own departure minute | `PlanPage.tsx`, `SamayChakra.tsx` | DET-04 |
-| K9 | Around midday, "leave now" answers can include first waits of 20 to 45 min when no bus is near the boarding stop, and often show one option carrying all three labels. This may be right; compare with the stop's board before filing | Live planning | DET-09 |
-| K10 | With the same start and destination, "Find buses" stays inactive without saying why ("Start and destination are the same place" exists but isn't shown) | `PlanPage.tsx` | PLAN-09 |
-| K11 | Sharing a journey that starts at "My location" puts your coordinates in the link, without the planned warning ("This link includes your start location" exists but isn't shown) | `PlanPage.tsx` | PRIV-05 |
-| K12 | The nightly data refresh isn't running: 17 to 22 Nov are recorded but not processed. Users don't see this; the model uses October history plus the live feed | `scripts\daily_refresh.py`, Windows Task Scheduler | — |
+| # | Issue | Where | Seen in | Status |
+| --- | --- | --- | --- | --- |
+| K1 | The home subtitle and the "past trips" counts said trips; the numbers count stop-to-stop bus runs (38 million traversals; a ride's count sums its stretches' observations) | `plan.subtitle`, `results.evidence`, `journey.based` in the string files | Home page, RES-02, DET-01 | Fixed in `4232b7e` |
+| K2 | "slowest around 18:30" was fixed text; it now names the longest spoke (13:30 for the example) | `PlanPage.tsx` | DET-06 | Fixed in `4232b7e` |
+| K3 | On desktop the hour chart beside the dial was cut off at the panel's edge; it now sits under the dial | `plan.css` | DET-06 | Fixed in `4232b7e` |
+| K4 | Shared planner links lost `&option=` (the list opened instead of the journey) and `modes=bus` | `PlanPage.tsx` | RES-10 | Fixed in `4232b7e` |
+| K5 | "Read the full validation report…" and "Send feedback" point to github.com/Shyamistic/Naadi, which isn't public yet, so they answer 404 | `AccuracyPage.tsx`, `DocumentPages.tsx` | ACC-04, DOC-05 | Open until the repository is public |
+| K6 | No message when there was no bus option, and with metro off the planner crashed ("Something went wrong") because the API's no-journey answer had a reduced query block | `PlanPage.tsx`, `naadi/api.py` | RES-12 | Fixed in `4232b7e` and `5221f97` |
+| K7 | Some text on Live buses, Route and Stop pages is still English in Hindi mode: "towards", "Share", "Typical wait about … min", "No service now", "End-to-end minutes", "Buses per hour", "From … · DTC", the Live map hint, bus counts | Those pages' components | HI-03 | Open |
+| K8 | The dial and "Quieter at" always show HH:30, even when you leave at another minute; the values are worked out at your own departure minute | `PlanPage.tsx`, `SamayChakra.tsx` | DET-04 | Open |
+| K9 | Around midday, "leave now" answers can include first waits of 20 to 45 min when no bus is near the boarding stop, and often show one option carrying all three labels. This may be right; compare with the stop's board before filing | Live planning | DET-09 | Watch |
+| K10 | With the same start and destination, "Find buses" stays inactive without saying why ("Start and destination are the same place" exists but isn't shown) | `PlanPage.tsx` | PLAN-09 | Open |
+| K11 | Sharing a journey that starts at "My location" puts your coordinates in the link, without the planned warning ("This link includes your start location" exists but isn't shown) | `PlanPage.tsx` | PRIV-05 | Open |
+| K12 | The nightly data refresh isn't running: 17 to 22 Nov are recorded but not processed. Users don't see this; the model uses October history plus the live feed | `scripts\daily_refresh.py`, Windows Task Scheduler | — | Open |
+| K13 | The quieter-hour box and the dial disagreed by a minute ("9 min less" against "8 min faster") | `PlanPage.tsx` | DET-01, DET-06 | Fixed in `7bb8f44` |
 
 ## 13. Recording results
 
@@ -442,7 +443,7 @@ Copy this table into a spreadsheet, one row per test and device:
 
 | ID | Build | Device and browser | Language and theme | Date and time (IST) | Result | Notes | Screenshot or bug |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| SM-01 | cd56a9d | Chrome 1xx, Windows 11, 1920 × 1080 | English, light | 23 Nov 16:10 | Pass | | |
+| SM-01 | 7bb8f44 | Chrome 1xx, Windows 11, 1920 × 1080 | English, light | 23 Nov 16:10 | Pass | | |
 
 Result is one of Pass, Fail, Blocked (couldn't run it), or Known issue Kn.
 

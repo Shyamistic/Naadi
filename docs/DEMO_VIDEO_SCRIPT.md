@@ -1,6 +1,6 @@
 # Naadi demo video script
 
-Written Mon 23 Nov 2026 for web build `cd56a9d` (About → Version and data → Web app build). It replaces the 17 Nov script, whose accuracy figures were out of date. Every number below was checked on the live site or in `validation\results` on 23 Nov.
+Written Mon 23 Nov 2026 for web build `7bb8f44` (About → Version and data → Web app build). It replaces the 17 Nov script, whose accuracy figures were out of date. Every number below was checked on the live site or in `validation\results` on 23 Nov.
 
 | | |
 | --- | --- |
@@ -25,14 +25,11 @@ Written Mon 23 Nov 2026 for web build `cd56a9d` (About → Version and data → 
 
 ## Before you record
 
-### Fix these first, or keep them off camera
+### Fixed before recording (live since build `7bb8f44`, 23 Nov)
 
-These show up on camera. I can fix the first three and redeploy in about half an hour; details are in `docs\MANUAL_TESTING.md`, "Known issues".
+The issues that would have shown on camera are fixed and deployed: the home subtitle now says "38 million real stop-to-stop bus runs" (not trips), the sentence under the dial names the real slowest hour, the hour chart sits fully under the dial, the quieter-hour box and the dial agree ("8 min"), shared journey links open the journey, and a trip with no bus option shows a message instead of an error. Details: `docs\MANUAL_TESTING.md`, "Known issues".
 
-1. **Home page subtitle** "Times from 38 million real Delhi bus trips and live GPS" (and the Hindi "3.8 करोड़ … बस यात्राओं"). The 38 million are stop-to-stop bus traversals (README), not trips, and the people judging built this data. It is on screen in scenes 1, 3 and 9. If it isn't fixed, scroll the panel in scene 1 so the "Delhi right now" card is at the top, and start scene 9 on the Accuracy page instead of the home page.
-2. **The sentence under the dial** says "slowest around 18:30" for every journey; the time is fixed in the code. For the brief's example the slowest spoke is 13:30 (138 min). In scene 5, stop scrolling at the dial.
-3. **The hour chart beside the dial** is cut off at the panel's right edge on desktop. Keep the dial at the left of the frame or zoom the recording to the dial.
-4. The 13:30 spoke of the example's dial is its longest (138 min, against 91 at 12:30 and 102 at 14:30). The dial re-times the same two buses at each hour, so a long spoke usually means a long wait at that hour; I haven't traced which bus. Don't use it as an example.
+One thing to keep in mind: the 13:30 spoke of the example's dial is its longest (138 min, against 91 at 12:30 and 102 at 14:30), and the sentence under the dial now says so. The dial re-times the same two buses at each hour, so a long spoke usually means a long wait at that hour; I haven't traced which bus. Don't use it as an example.
 
 ### When to record
 
@@ -49,7 +46,7 @@ These show up on camera. I can fix the first three and redeploy in about half an
 
 ### Warm-up, 10 minutes before
 
-1. https://13-235-147-97.sslip.io/about → "Version and data" → "Web app build" reads `cd56a9d 2026-11-22T18:50Z` or later.
+1. https://13-235-147-97.sslip.io/about → "Version and data" → "Web app build" reads `7bb8f44 2026-11-23T11:09Z` or later.
 2. https://13-235-147-97.sslip.io/api/health → `"buses"` above 2,000.
 3. Run the brief's example once, open Road speeds once and Live buses once, so the first-load downloads are cached. Then reload the home page.
 4. Choose the "leave now" pair for scene 6 (see that scene) and keep its link ready.
@@ -146,7 +143,7 @@ If the card's second figure says 5% or more, you can add: "Together, they say tr
 **Screen:** the journey detail. A small bus drives the route on the map, then the 24-spoke dial.
 
 **Do:**
-1. Scroll back up and click the first bus card (69 min). The panel shows "69 min · Arrive 09:39", a box "Leaving at 06:30 usually takes 61 min, 9 min less" with a "Plan for 06:30" button, and the numbered steps. A bus icon drives the route on the map and loops.
+1. Scroll back up and click the first bus card (69 min). The panel shows "69 min · Arrive 09:39", a box "Leaving at 06:30 usually takes 61 min, 8 min less" with a "Plan for 06:30" button, and the numbered steps. A bus icon drives the route on the map and loops.
 2. Scroll to "Every hour of the day". Hover the 06 spoke (right side of the dial): the centre shows 61 and the line below reads "06:30 · 9 min faster · quietest hour". Then hover the 18 spoke (left side): 108.
 3. Hover the 06 spoke again and click "Plan for 06:30". The options for 06:30 appear.
 
@@ -155,7 +152,7 @@ If the card's second figure says 5% or more, you can add: "Together, they say tr
 
 **Caption:** SamayChakra · the same trip at every hour · 06:30: 61 min · 18:30: 108 min
 
-**Avoid:** the sentence below the dial, the clipped chart beside it and the 13:30 spoke (see "Fix these first").
+**Optional:** the hour chart and the sentence under the dial ("Quickest around 06:30 (61 min); slowest around 13:30 (138 min)") can stay in frame. Don't pick the 13:30 spoke as an example (see "Fixed before recording").
 
 ### 6 · Leaving now (1:36–2:00)
 
@@ -169,7 +166,7 @@ If the card's second figure says 5% or more, you can add: "Together, they say tr
 | Rajouri Garden → Karol Bagh | `/?from=28.649200,77.122000&fromName=Rajouri+Garden&to=28.651900,77.190900&toName=Karol+Bagh&depart=now&modes=bus` | 832 or 801-IGI-IND, 813, 817; next in 8 min |
 | Mehrauli → Saket | `/?from=28.524400,77.185500&fromName=Mehrauli&to=28.524500,77.206600&toName=Saket&depart=now&modes=bus` | 34 or 356, 427, 463; 33 min |
 
-Put `https://13-235-147-97.sslip.io` in front of the link. Around midday some pairs show first waits of 30 to 45 minutes because no bus is near the stop; skip those. The links include metro options even with `modes=bus` (a known bug); that doesn't matter here.
+Put `https://13-235-147-97.sslip.io` in front of the link. Around midday some pairs show first waits of 30 to 45 minutes because no bus is near the stop; skip those. The links are bus-only (`modes=bus`).
 
 **Do:**
 1. Open the chosen link. The header reads "Leaving now · Live" and the card has a "Live" badge.
@@ -211,7 +208,7 @@ Put `https://13-235-147-97.sslip.io` in front of the link. Around midday some pa
 ### 9 · Hindi, the API, the close (2:46–3:00)
 
 **Do:**
-1. Click "हिन्दी" in the header on the home page (or on Accuracy, if the subtitle isn't fixed). The panel and the map's place names switch to Hindi.
+1. Click "हिन्दी" in the header on the home page. The panel and the map's place names switch to Hindi.
 2. Cut to https://13-235-147-97.sslip.io/api/docs and scroll past `GET /journeys` and `GET /v2/get_multi_modal`.
 3. End card, 3 s.
 

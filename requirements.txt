@@ -8,3 +8,4 @@ openpyxl>=3.1        # DMRC station spreadsheets (scripts/build_walk.py)
 boto3>=1.35          # S3 sync and deploys (scripts/ingest_live.py, scripts/fetch_eta_logs.py, infra/)
 pytest>=8            # tests
 httpx>=0.27          # FastAPI test client used by the tests
+pillow>=10           # optional: README screenshots and GIF (scripts/build_docs_figures.py --images)

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112" viewBox="-56 -56 112 112" role="img" aria-label="Naadi logo">
+  <circle r="54" fill="#FFF1E0"/>
+  <circle r="44" fill="#FFFFFF" stroke="#1A3A8F" stroke-width="6"/>
+  <g stroke="#1A3A8F" stroke-width="2.6" stroke-linecap="round">
+    <path d="M0-12V-38M0 12V38M-12 0H-38M12 0H38M-8.5-8.5L-27-27M8.5 8.5L27 27M8.5-8.5L27-27M-8.5 8.5L-27 27"/>
+  </g>
+  <circle r="9" fill="#FF9933"/>
+</svg>
