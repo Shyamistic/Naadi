@@ -345,7 +345,7 @@ npm ci
 npm run dev        # http://localhost:5173, /api goes to the live API
 ```
 
-**The whole thing:** Python 3.11+, Node 20+, and about 40 GB of disk for the October archive. The pipeline takes about two hours on a 16-thread laptop, mostly the archive ingest.
+**The whole thing:** Python 3.11+, Node 20+, and about 40 GB of disk for the October archive. The pipeline takes about two hours on a 16-thread laptop, mostly the archive ingest. The commands are for Windows PowerShell; on macOS or Linux use `.venv/bin/python` and forward slashes.
 
 ```powershell
 python -m venv .venv
