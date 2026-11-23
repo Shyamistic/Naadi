@@ -86,17 +86,17 @@ def metro_patterns(gtfs_dir: Path = METRO_GTFS):
     trips = [r for r in _read(gtfs_dir / "trips.txt") if r.get("service_id") == "weekday"]
     times = defaultdict(list)
     for row in _read(gtfs_dir / "stop_times.txt"):
-        times[row["trip" + "_id"]].append(row)
+        times[row["trip_id"]].append(row)
     by_route = defaultdict(list)
     for trip in trips:
-        seq = sorted(times.get(trip["trip" + "_id"], []), key=lambda r: int(r["stop_sequence"]))
+        seq = sorted(times.get(trip["trip_id"], []), key=lambda r: int(r["stop_sequence"]))
         if seq:
             by_route[str(trip["route_id"])].append((trip, seq))
     shapes = _shape_rows(gtfs_dir)
     patterns = []
     for rid in sorted(by_route, key=int):
         rows = by_route[rid]
-        trip, selected = min(rows, key=lambda x: (-len(x[1]), int(x[0]["trip" + "_id"])))
+        trip, selected = min(rows, key=lambda x: (-len(x[1]), int(x[0]["trip_id"])))
         first = _seconds(selected[0]["arrival_time"])
         deps = np.zeros((len(selected), 24), dtype=np.float32)
         for _, seq in rows:
@@ -118,7 +118,7 @@ def metro_patterns(gtfs_dir: Path = METRO_GTFS):
             "deps": deps,
             "shape": shape,
             "towards": stations[selected[-1]["stop_id"]][0],
-            "trip" + "_id": trip["trip" + "_id"],
+            "trip_id": trip["trip_id"],
         })
     by_line = defaultdict(list)
     for p in patterns:
@@ -133,7 +133,7 @@ def metro_patterns(gtfs_dir: Path = METRO_GTFS):
             else:
                 p["group"] = 0 if ref_pos[shared[1]] > ref_pos[shared[0]] else 1
     for p in patterns:
-        p.pop("trip" + "_id", None)
+        p.pop("trip_id", None)
     return stations, patterns
 
 
@@ -373,19 +373,19 @@ def _feed_specs(path: Path, mode: str, stop_base: int, route_base: int):
         frequencies = _zip_table(z, "frequencies.txt")
     by_trip = defaultdict(list)
     for row in stop_times:
-        by_trip[row["trip" + "_id"]].append(row)
+        by_trip[row["trip_id"]].append(row)
     for rows in by_trip.values():
         rows.sort(key=lambda r: int(r.get("stop_sequence", 0)))
     stop_lookup = {r["stop_id"]: (r["stop_name"], float(r["stop_lat"]), float(r["stop_lon"])) for r in stops}
-    trip_lookup = {r["trip" + "_id"]: r for r in trips}
-    freq_lookup = {r["trip" + "_id"]: r for r in frequencies}
+    trip_lookup = {r["trip_id"]: r for r in trips}
+    freq_lookup = {r["trip_id"]: r for r in frequencies}
     out = []
     for n, route in enumerate(routes):
-        route_trips = [t for t in trips if t["route_id"] == route["route_id"] and by_trip.get(t["trip" + "_id"])]
+        route_trips = [t for t in trips if t["route_id"] == route["route_id"] and by_trip.get(t["trip_id"])]
         if not route_trips:
             continue
         trip = route_trips[0]
-        raw_seq = by_trip[trip["trip" + "_id"]]
+        raw_seq = by_trip[trip["trip_id"]]
         if mode == "rail":
             forward = sorted(stops, key=lambda r: float(r["stop_lat"]) + float(r["stop_lon"]))
             first_lat = float(stop_lookup[raw_seq[0]["stop_id"]][1]); last_lat = float(stop_lookup[raw_seq[-1]["stop_id"]][1])
@@ -415,11 +415,11 @@ def _feed_specs(path: Path, mode: str, stop_base: int, route_base: int):
         freq = np.zeros((len(seq), 24), np.float32)
         if mode == "rail":
             for t in route_trips:
-                rows = by_trip[t["trip" + "_id"]]
+                rows = by_trip[t["trip_id"]]
                 if rows:
                     freq[:, (_seconds(rows[0]["departure_time"]) // 3600) % 24] += 1.0
         else:
-            f = freq_lookup.get(trip["trip" + "_id"], {})
+            f = freq_lookup.get(trip["trip_id"], {})
             headway = float(f.get("headway_secs") or 0)
             start, end = _seconds(f.get("start_time", "00:00:00")), _seconds(f.get("end_time", "00:00:00"))
             if headway > 0:

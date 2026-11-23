@@ -26,8 +26,8 @@ LIVE = ROOT / "data" / "live"
 URL = "https://otd.delhi.gov.in/api/realtime/VehiclePositions.pb"
 IST = timezone(timedelta(hours=5, minutes=30))
 INTERVAL = 10.0
-UNIT_COL = "vehicle" + "_id"
-RUN_COL = "trip" + "_id"
+UNIT_COL = "vehicle_id"
+RUN_COL = "trip_id"
 SCHEMA = pa.schema([
     ("poll_ts", pa.int64()), ("feed_ts", pa.int64()), ("ts", pa.int64()),
     (UNIT_COL, pa.string()), ("route_id", pa.string()), (RUN_COL, pa.string()),

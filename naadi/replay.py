@@ -174,7 +174,7 @@ def positions_at(net, day: str, t: float, max_age_s: int = 300):
     """Return anonymised archived positions at a departure time."""
     day = _day_name(day)
     path = L2 / f"day={day}.parquet"
-    unit_col = "vehicle" + "_id"
+    unit_col = "vehicle_id"
     sql = f"""
         WITH latest AS (
           SELECT CAST(hash({unit_col}) AS VARCHAR) AS pid, route_id, lat, lng, ts, shape_dist_m,

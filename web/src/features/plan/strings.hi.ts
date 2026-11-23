@@ -1,5 +1,5 @@
 export const planHi = {
-  "plan.title": "बस यात्रा की योजना बनाएँ", "plan.subtitle": "3.8 करोड़ वास्तविक दिल्ली बस यात्राओं और लाइव GPS से समय",
+  "plan.title": "बस यात्रा की योजना बनाएँ", "plan.subtitle": "3.8 करोड़ वास्तविक स्टॉप-से-स्टॉप बस सफ़रों और लाइव GPS से समय",
   "plan.from": "कहाँ से", "plan.to": "कहाँ तक", "plan.find": "बसें खोजें", "plan.placeholder": "स्टॉप, क्षेत्र या स्थान",
   "plan.leaveNow": "अभी निकलें", "plan.departAt": "समय पर निकलें", "plan.includeMetro": "मेट्रो और अन्य परिवहन शामिल करें (समय-सारणी)",
   "plan.example": "ब्रीफ़ का उदाहरण आज़माएँ", "plan.exampleRun": "यह यात्रा दिखाएँ", "plan.swap": "शुरुआत और गंतव्य बदलें",

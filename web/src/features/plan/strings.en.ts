@@ -1,5 +1,5 @@
 export const planEn = {
-  "plan.title": "Plan a bus journey", "plan.subtitle": "Times from 38 million real Delhi bus trips and live GPS",
+  "plan.title": "Plan a bus journey", "plan.subtitle": "Times from 38 million real stop-to-stop bus runs and live GPS",
   "plan.from": "From", "plan.to": "To", "plan.find": "Find buses", "plan.placeholder": "Stop, area or landmark",
   "plan.leaveNow": "Leave now", "plan.departAt": "Depart at", "plan.includeMetro": "Include metro and other transit (timetable times)",
   "plan.example": "Try the brief's example", "plan.exampleRun": "Show this journey", "plan.swap": "Swap start and destination",
