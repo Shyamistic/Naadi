@@ -2,7 +2,7 @@
 
 **Transport Stack Hackathon 2026 · Problem 1: real-time bus traffic model and journey planner** · updated 23 Nov 2026
 
-Live app: https://13-235-147-97.sslip.io/ · API: https://13-235-147-97.sslip.io/api/docs
+Live app: https://13-235-147-97.sslip.io/ · API: https://13-235-147-97.sslip.io/api/docs · Demo video: https://youtu.be/7jEKTCY2mV0
 
 ## The idea in one line
 

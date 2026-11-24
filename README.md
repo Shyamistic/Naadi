@@ -38,7 +38,7 @@ Every bus is a moving traffic sensor. <i>Dilli ki naadi, har pal</i>: Delhi's pu
 <p align="center">
   <a href="https://13-235-147-97.sslip.io/"><b>🌐 Live app</b></a> •
   <a href="https://13-235-147-97.sslip.io/api/docs"><b>📘 API docs</b></a> •
-  <a href="#-demo"><b>🎬 Demo</b></a> •
+  <a href="https://youtu.be/7jEKTCY2mV0"><b>🎬 Demo video</b></a> •
   <a href="docs/TECHNICAL_NOTE.md"><b>📐 Technical note</b></a> •
   <a href="docs/VALIDATION_REPORT.md"><b>📊 Validation report</b></a> •
   <a href="docs/PROPOSAL.md"><b>📝 Proposal</b></a>
@@ -77,12 +77,17 @@ Every test is held out: history comes only from days before the test days, and n
 ## 🎬 Demo
 
 <p align="center">
+  <a href="https://youtu.be/7jEKTCY2mV0"><img src="docs/images/demo-video.jpg" alt="Watch the Naadi demo video on YouTube (3 minutes 32 seconds)" width="100%"/></a>
+  <br/><sub><b><a href="https://youtu.be/7jEKTCY2mV0">▶ Watch the demo on YouTube (3:32)</a></b></sub>
+</p>
+
+<p align="center">
   <img src="docs/images/speeds-day.gif" alt="Road speeds through an ordinary weekday: 3D columns over Delhi rise and turn red at the evening peak" width="100%"/>
   <br/><sub>Road speeds through an ordinary weekday, hour by hour. Taller, redder columns are slower roads.</sub>
 </p>
 
+- **Watch:** [the demo video on YouTube](https://youtu.be/7jEKTCY2mV0) (3:32; script: [docs/DEMO_VIDEO_SCRIPT.md](docs/DEMO_VIDEO_SCRIPT.md)).
 - **Try it:** https://13-235-147-97.sslip.io/ and press "Show this journey" for the brief's example.
-- **Demo video:** _the link goes here once it's uploaded_ (script: [docs/DEMO_VIDEO_SCRIPT.md](docs/DEMO_VIDEO_SCRIPT.md)).
 - **Ask the API:** [`/api/journeys?from=28.665476,77.230173&to=28.548700,77.256981&depart=2026-11-24T08:30`](https://13-235-147-97.sslip.io/api/journeys?from=28.665476,77.230173&to=28.548700,77.256981&depart=2026-11-24T08:30)
 
 ---
@@ -194,7 +199,7 @@ Problem 1 asks for a "Google Maps-like" model of bus travel times between any tw
 | Different answers by time of day, and the trip at a quieter hour | SamayChakra and "Quieter at 06:30: 61 min" on every option |
 | A map-based screen to inspect results | A full web app: installable, Hindi and English, light and dark |
 | Estimates checked against actual trips and Google Maps | Four held-out tests, including a replay on the buses that ran and a head-to-head with Google ([validation report](docs/VALIDATION_REPORT.md)) |
-| README, technical note, demo video, proposal; no mock-only entries | This README, [technical note](docs/TECHNICAL_NOTE.md), [demo script](docs/DEMO_VIDEO_SCRIPT.md), [proposal](docs/PROPOSAL.md); real data throughout |
+| README, technical note, demo video, proposal; no mock-only entries | This README, [technical note](docs/TECHNICAL_NOTE.md), [demo video](https://youtu.be/7jEKTCY2mV0) ([script](docs/DEMO_VIDEO_SCRIPT.md)), [proposal](docs/PROPOSAL.md); real data throughout |
 
 **What's distinctive:**
 
@@ -406,4 +411,4 @@ $env:NAADI_BASE_URL='https://13-235-147-97.sslip.io'; npx playwright test -c pla
 - **AI assistance:** built with AI coding assistance (Kiro), which the hackathon rules allow. Design decisions, data checks and results are reviewed and recorded in this repository.
 - **Licence:** MIT (see [`LICENSE`](LICENSE)). Naadi is an independent hackathon project, not a service of DTC, the Delhi Transport Department or the Government of NCT of Delhi.
 
-<p align="center"><sub>Built for the <b>Transport Stack Hackathon 2026</b> · Problem 1 · <a href="https://13-235-147-97.sslip.io/">Try Naadi</a> · <a href="https://13-235-147-97.sslip.io/api/docs">API docs</a></sub></p>
+<p align="center"><sub>Built for the <b>Transport Stack Hackathon 2026</b> · Problem 1 · <a href="https://13-235-147-97.sslip.io/">Try Naadi</a> · <a href="https://13-235-147-97.sslip.io/api/docs">API docs</a> · <a href="https://youtu.be/7jEKTCY2mV0">Watch the demo</a></sub></p>

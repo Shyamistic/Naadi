@@ -1,5 +1,7 @@
 # Naadi demo video script
 
+**The recorded video:** https://youtu.be/7jEKTCY2mV0 (3:32).
+
 Written Mon 23 Nov 2026 for web build `cf75acf` (About → Version and data → Web app build). It replaces the 17 Nov script, whose accuracy figures were out of date. Every number below was checked on the live site or in `validation\results` on 23 Nov.
 
 | | |
